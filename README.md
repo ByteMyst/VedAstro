@@ -40,7 +40,7 @@
 [![.NET](https://img.shields.io/static/v1?style=for-the-badge&message=.NET&color=512BD4&logo=.NET&logoColor=FFFFFF&label=)](https://www.nuget.org/packages/VedAstro.Library) [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://pypi.org/project/VedAstro/)  [![Docker](https://img.shields.io/static/v1?style=for-the-badge&message=Docker&color=2496ED&logo=Docker&logoColor=FFFFFF&label=)](https://hub.docker.com/r/vedastro/api)
 
 # 🆓 100% Open Source
-As the great sage [Parashara](https://en.wikipedia.org/wiki/Parashara) imparted the wisdom of the stars freely, unbound by wealth or claim, so too does VedAstro, a gift unencumbered by price or title.
+As the sage [Parashara](https://en.wikipedia.org/wiki/Parashara) imparted the wisdom of the stars freely, unbound by wealth or claim, so too does VedAstro, a gift unencumbered by price or title.
 
 ![OpenSourceCode](https://vedastro.org/images/open-source-code-sample.png)
 
@@ -74,6 +74,7 @@ Your work shines with brilliance, come what may.<br>
 Below is sample API call result for data related to "**Sun**" on "**30/06/2023**" at "**Singapore**"
 --> [Watch Video Guide](https://www.youtube.com/watch?v=y110RAgIorY)
 --> [JS Demo Files](https://github.com/VedAstro/VedAstro/tree/master/Demo/JavaScript)
+--> [Demo API Call](https://vedastroapi.azurewebsites.net/api/Calculate/AllPlanetData/PlanetName/Sun/Location/Singapore/Time/00:00/24/04/2024/+08:00)
 ```json
  "Payload": {
     "SwissEphemeris": "{ Longitude = 97.672406549912, Latitude = 2.2248025536827577E-05, DistanceAU = 1.0165940297895264, SpeedLongitude = 0, SpeedLatitude = 0, SpeedDistance = 0 }",
@@ -173,12 +174,12 @@ This project is an effort to change that. [Read More](https://vedastro.org/About
 # 🎂 9 Years Old 
 The first line of code for this project was written in **late 2014** at **Itä-Pasila**.
 Started as a simple desktop software, with no UI and only text display.
-With continued support from users, this project has steadily grown to what it is today. Helping people from all over the world.
+With continued support from users, this project has steadily grown to what it is today. Helping people from all over the world. 🌍
     
 # 📚 Credits &amp; Reference 
 ![credits](https://vedastro.org/images/bv-raman-rao.png)
 
-Thanks to [B.V. Raman](https://en.wikipedia.org/wiki/B._V._Raman) and his grandfather B. Suryanarain Rao for pioneering easy to read astrology books. Credit also goes to [St. Jean-Baptiste de La Salle](https://en.wikipedia.org/wiki/Jean-Baptiste_de_La_Salle) for proving the **efficacy of free and open work** for the benefit all...[Read More](https://vedastro.org/About).
+Thanks to [B.V. Raman](https://en.wikipedia.org/wiki/B._V._Raman) and his grandfather B. Suryanarain Rao for pioneering easy to read astrology books. Credit also goes to [St. Jean-Baptiste de La Salle](https://en.wikipedia.org/wiki/Jean-Baptiste_de_La_Salle) for proving the **efficacy of free and open work** for the benefit of all men...[Read More](https://vedastro.org/About).
 
 
 # 💌 Support
@@ -192,13 +193,14 @@ Inspired by the concept of "**Gonzo Journalism**", pioneered by [Hunter S. Thomp
 We favour this pattern for the development of VedAstro simply due to the volatile nature of this project.
 Other development styles like "Waterfall" and "Scrum" are equally good when the need is.
 
-We want to :
-- try out novel ideas at a heartbeat
-- we want the latest platform 
-- we want it cheap
+✅ We want to :
+- 💓 try out novel ideas at a heartbeat
+- 📬 we want the latest platform 
+- 💰 we want it cheap
 
 Hence the "**gonzo development**" pattern is best suited for this needs.
 
+<!--
 ### Beta & Stable
 The negative side effect is that there will be bugs forever. Because it's near impossible to constantly
 change an ever-growing code base without having to constantly fix breaking changes.
@@ -208,9 +210,9 @@ To deal with this, we split the Web App into Beta and Stable.
 
 Stable version will contain an old version of the App, while beta will always contain latest buildable code.
 But the database will be shared between these. Meaning data changes in Beta will seen in Stable as well.
+-->
 
-
- # 👶 Drunk Proof UX 
+ # 👶 Drunk Proof UI 
  We would like to introduce in this project a novel UX concept called "**Drunk Proofing**".
  The idea is simple. All UI is designed to be operated by an alcoholically intoxicated person aka drunk.
 
@@ -243,9 +245,14 @@ Then you know your code is right, and **has a place for it in this universe**.
 
 
 # 🙏 Special Thanks
-Built with Software Sponsored by **[JetBrains](https://www.jetbrains.com/)** 
+<img src="https://pics.paypal.com/00/p/ZjU4ZjZiMjEtNDE0Ny00MGExLTg2ZTMtNzkxOTQ1MTI4Mzc0/image_34.PNG" width="100"/>
 
-<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" width="200"/>
+**Leslie Choi** : Sponsored & believed in the project even when work was only half done.
+
+
+<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" width="100"/>
+
+**JetBrains** : Gave free "ReSharper License" that made coding life easier.
 
 
 # ❤️ Social

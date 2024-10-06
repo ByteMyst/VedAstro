@@ -1664,7 +1664,7 @@ class AstroTable {
         //get all API calls from server only if empty
         if (this.APICalls.length === 0) {
             this.APICalls = await AstroTable.GetAPIPayload(
-                `${window.vedastro.APIDomain}/ListCalls`
+                `${VedAstro.APIDomain}/ListCalls`
             );
         }
 
@@ -1868,7 +1868,7 @@ class AstroTable {
         var selectedMethodInfo = await instance.GetAPIMetadata(endpoint);
 
         //construct the base url
-        var finalUrl = `${window.vedastro.APIDomain}/Calculate/${endpoint}/`;
+        var finalUrl = `${VedAstro.APIDomain}/Calculate/${endpoint}/`;
 
         //if metadata not found, alert user
         if (selectedMethodInfo === undefined) {
@@ -1999,7 +1999,7 @@ class AstroTable {
                                 ${await AstroTable.GetAPICallsListSelectOptionHTML(
                     columnData[columnNumber].Api,
                     keyColumnName,
-                    window.vedastro.ApiDomain
+                    VedAstro.ApiDomain
                 )}
                             </select>
                         </div>
@@ -2067,7 +2067,7 @@ class AstroTable {
     static async GetAPICallsListSelectOptionHTML(selectValue, keyColumnName) {
         //get raw API calls list from Server
         var apiCalls = await AstroTable.GetAPIPayload(
-            `${window.vedastro.ApiDomain}/ListCalls`
+            `${VedAstro.ApiDomain}/ListCalls`
         );
 
         //filter out call that can NOT be used in columns (make User's live easier)
@@ -2472,8 +2472,8 @@ class HoroscopeChat {
             var $dropdown = $("#PersonListDropdown");
 
             //DO FOR USER'S SAVED LIST
-            window.vedastro.PersonList = await CommonTools.GetAPIPayload(
-                `${window.vedastro.ApiDomain}/GetPersonList/OwnerId/${window.vedastro.UserId}`
+            VedAstro.PersonList = await CommonTools.GetAPIPayload(
+                `${VedAstro.ApiDomain}/GetPersonList/OwnerId/${VedAstro.UserId}`
             );
 
             //create a header in the list
@@ -2484,7 +2484,7 @@ class HoroscopeChat {
             $dropdown.append($horoscopeGroup); //add to main list
 
             //populate slection list at bottom with horoscopes
-            $.each(window.vedastro.PersonList, function (i, person) {
+            $.each(VedAstro.PersonList, function (i, person) {
                 $horoscopeGroup.append(
                     $("<option>", {
                         value: person.PersonId,
@@ -2495,8 +2495,8 @@ class HoroscopeChat {
             });
 
             //DO FOR PUBLIC LIST
-            window.vedastro.PublicPersonList = await CommonTools.GetAPIPayload(
-                `${window.vedastro.ApiDomain}/GetPersonList/OwnerId/101`
+            VedAstro.PublicPersonList = await CommonTools.GetAPIPayload(
+                `${VedAstro.ApiDomain}/GetPersonList/OwnerId/101`
             );
             //create a header in the list
             let $publicHoroscopeGroup = $("<optgroup>", {
@@ -2505,7 +2505,7 @@ class HoroscopeChat {
             $dropdown.append($publicHoroscopeGroup); //add to main list
 
             //populate slection list at bottom with horoscopes
-            $.each(window.vedastro.PublicPersonList, function (i, person) {
+            $.each(VedAstro.PublicPersonList, function (i, person) {
                 $publicHoroscopeGroup.append(
                     $("<option>", {
                         value: person.PersonId,
@@ -2582,7 +2582,7 @@ class HoroscopeChat {
         //user's input is sent to server for reply
         //get selected birth time
         //TODO can be DOB or bookname
-        //var timeInputUrl = CommonTools.BirthTimeUrlOfSelectedPersonJson();
+        //var timeInputUrl = VedAstro.SelectedPerson.BirthTime;
         //var timeInputUrl = "Location/Ipoh/Time/12:44/23/04/1994/+08:00";
 
         //show temperoray "Thinking" message to user before calling API as that will take time
@@ -2609,7 +2609,7 @@ class HoroscopeChat {
     async sendMessageToServer(timeInputUrl, userQuestionInput) {
         //construct the final URL
         userQuestionInput = userQuestionInput.replace(/\?/g, ""); //remove question marks as it break API detection
-        const url = `${this.LiveServerURL}/HoroscopeChat/${timeInputUrl}/UserQuestion/${userQuestionInput}/UserId/${window.vedastro.UserId}/SessionId/${this.SessionId}`;
+        const url = `${this.LiveServerURL}/HoroscopeChat/${timeInputUrl}/UserQuestion/${userQuestionInput}/UserId/${VedAstro.UserId}/SessionId/${this.SessionId}`;
 
         try {
             const response = await fetch(url);
@@ -2935,7 +2935,7 @@ class HoroscopeChat {
             primaryAnswerHash
         ) {
             followUpQuestion = followUpQuestion.replace(/\?/g, ""); //remove question marks as it break API detection
-            const url = `${window.vedastro.horoscopechat.LiveServerURL}/HoroscopeFollowUpChat/${window.vedastro.horoscopechat.SelectedBirthTime}/FollowUpQuestion/${followUpQuestion}/PrimaryAnswerHash/${primaryAnswerHash}/UserId/${window.vedastro.UserId}/SessionId/${window.vedastro.horoscopechat.SessionId}`;
+            const url = `${window.vedastro.horoscopechat.LiveServerURL}/HoroscopeFollowUpChat/${window.vedastro.horoscopechat.SelectedBirthTime}/FollowUpQuestion/${followUpQuestion}/PrimaryAnswerHash/${primaryAnswerHash}/UserId/${VedAstro.UserId}/SessionId/${window.vedastro.horoscopechat.SessionId}`;
 
             try {
                 const response = await fetch(url);
@@ -3055,7 +3055,7 @@ class HoroscopeChat {
         }
 
         //get full details of the person
-        let selectedPerson = window.vedastro.PersonList.find(
+        let selectedPerson = VedAstro.PersonList.find(
             (obj) => obj.PersonId === selectedPersonId
         );
 
@@ -3063,7 +3063,7 @@ class HoroscopeChat {
         localStorage.setItem("selectedPerson", JSON.stringify(selectedPerson));
 
         //convert person name to birth DOB (so unregistered person can be checked)
-        var newTopicId = CommonTools.BirthTimeUrlOfSelectedPersonJson();
+        var newTopicId = VedAstro.SelectedPerson.BirthTime.toURL();
         window.vedastro.horoscopechat.SelectedBirthTime = newTopicId;
 
         //person now selected, ready to chat so change GUI
@@ -3135,16 +3135,140 @@ class HoroscopeChat {
 //---------------------------- GLOBAL SETTINGS ---------------------------- 
 
 
-//place to hold global data for app use
-window.vedastro = {
-    UserId: "UserId" in localStorage ? JSON.parse(localStorage["UserId"]) : "101", // get user id from browser storage
-    get IsGuestUser() {
-        return !this.UserId || this.UserId === "101";
-    },
-    // ApiDomain: "https://vedastroapi.azurewebsites.net/api",
-    ApiDomain: "http://localhost:7071/api",
-};
 
+/**
+ * VedAstro class representing the global app data and settings.
+ */
+class VedAstro {
+    /**
+     * The default API domain.
+     */
+    static ApiDomain = "http://localhost:7071/api";
+    //static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
+
+    /**
+     * get user ID stored in memory else return guest/default user id
+     */
+    static UserId = "UserId" in localStorage ? JSON.parse(localStorage["UserId"]) : "101"; // get user id from browser storage
+
+    /**
+     * Gets the selected person.
+     */
+    static GetSelectedPerson() {
+        try {
+            // Get the selected person from local storage
+            const selectedPersonJson = localStorage.getItem("selectedPerson");
+
+            if (!selectedPersonJson) {
+                return null;
+            }
+
+            // Parse the selected person JSON into a Person object
+            const selectedPersonData = JSON.parse(selectedPersonJson);
+            const selectedPerson = new Person(selectedPersonData);
+
+            // Return the selected person object
+            return selectedPerson;
+        } catch (error) {
+            // If JSON parsing or object parsing fails, return null quietly
+            return null;
+        }
+    }
+
+    /**
+     * Sets the selected person.
+     */
+    static SetSelectedPerson(person) {
+        // Save the selected person ID to local storage
+        localStorage.setItem("selectedPerson", JSON.stringify(person));
+    }
+
+    /**
+     * Sets the selected person by ID rest of data fetched by API
+     */
+    static SetSelectedPersonById(personId) {
+        // Fetch the person data from the API
+        fetch(`${VedAstro.ApiDomain}/Calculate/GetPerson/UserId/${VedAstro.UserId}/PersonId/${personId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Save the selected person to local storage
+                localStorage.setItem("selectedPerson", JSON.stringify(data.Payload));
+            });
+    }
+
+    /**
+     * Checks if the user is a guest.
+     * True if the user is a guest, false otherwise.
+     */
+    static IsGuestUser() {
+        return !VedAstro.UserId || VedAstro.UserId === "101";
+    }
+
+    static CachePersonList(cacheType, personList) {
+        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
+        localStorage.setItem(cacheKey, JSON.stringify(personList));
+    }
+
+    /**
+     * Gets the person list from local storage or API.
+     * 
+     * @param {string} cacheType - Type of cache, either 'private' or 'public'.
+     * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
+     */
+    static async GetPersonList(cacheType) {
+        // Determine the owner ID based on the cache type
+        const ownerId = cacheType === 'private' ? VedAstro.UserId : '101';
+        // Determine the cache key based on the cache type
+        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
+
+        try {
+            // Check if the person list is cached in local storage
+            const cachedPersonList = localStorage.getItem(cacheKey);
+            if (cachedPersonList !== null && cachedPersonList !== undefined) {
+                // If cached, parse the JSON and create Person objects
+                return JSON.parse(cachedPersonList).map((person) => new Person(person));
+            }
+
+            // If no cached data, fetch the person list from the API
+            const personList = await VedAstro.FetchPersonListFromAPI(cacheType);
+            // Cache the person list
+            VedAstro.CachePersonList(cacheType, personList);
+            // Return the person list
+            return personList;
+        } catch (error) {
+            // Handle any errors that occur during JSON parsing or object parsing
+            console.error('Error getting person list:', error);
+            // Return null quietly
+            return null;
+        }
+    }
+
+    /**
+     * Fetches the person list from the API.
+     * 
+     * @param {string} cacheType - Type of cache, either 'private' or 'public'.
+     * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
+     */
+    static async FetchPersonListFromAPI(cacheType) {
+        // Determine the owner ID based on the cache type
+        const ownerId = cacheType === 'private' ? VedAstro.UserId : '101';
+
+        try {
+            // Fetch the person list from the API
+            const response = await fetch(`${VedAstro.ApiDomain}/Calculate/GetPersonList/UserId/${ownerId}`);
+            // Parse the JSON response
+            const data = await response.json();
+            // Create Person objects from the response data
+            return data.Payload.map((person) => new Person(person));
+        } catch (error) {
+            // Handle any errors that occur during the API fetch or JSON parsing
+            console.error('Error fetching person list from API:', error);
+            // Return null quietly
+            return null;
+        }
+    }
+
+}
 
 
 
@@ -3228,61 +3352,22 @@ class CommonTools {
         return newObj;
     }
 
-
-    //takes JSON person and gives birth time in URL format with birth location as below
-    //exp :  "Location/Singapore/Time/23:59/31/12/2000/+08:00"
-    static BirthTimeUrlOfSelectedPersonJson() {
-        // Get the previously selected person from local storage
-        var personJson = JSON.parse(localStorage.getItem("selectedPerson"));
-
-        let birthTimeJson = personJson["BirthTime"];
-
-        var locationName = birthTimeJson.Location.Name;
-        var stdTime = birthTimeJson.StdTime.split(" ");
-        var time = stdTime[0];
-        var date = stdTime[1];
-        var timezone = stdTime[2];
-        var result =
-            "Location/" +
-            locationName +
-            "/Time/" +
-            time +
-            "/" +
-            date +
-            "/" +
-            timezone;
-        return result;
-    }
-
-
     // Add a person to the Vedastro API
+    // returns newly created ID for person
     static async AddPerson(person) {
-        const apiUrl = `${window.vedastro.ApiDomain}/Calculate/AddPerson/OwnerId/xxx/Location/Singapore/Time/00:00/24/06/2024/+08:00/PersonName/James%20Brown/Gender/Male/Notes/%7Brodden:%22AA%7D`;
 
         // Update the API URL with the provided person's data
-        const updatedApiUrl = apiUrl
-            .replace("xxx", VedAstro.ApiDomain)
-            .replace("Location/Singapore/Time/00:00/24/06/2024/+08:00", `Location/${person.Location.Name}/Time/${person.BirthTime.StdTime}/+${person.BirthTime.TimeZone}`)
-            .replace("PersonName/James%20Brown/Gender/Male/Notes/%7Brodden:%22AA%7D", `PersonName/${person.Name}/Gender/${person.Gender}/Notes/${JSON.stringify(person.Notes)}`);
+        var timeUrl = person.BirthTime.toURL() // Location/Singapore/Time/00:00/24/06/2024
+        const apiUrl = `${VedAstro.ApiDomain}/Calculate/AddPerson/OwnerId/${VedAstro.UserId}${timeUrl}/PersonName/${person.Name}/Gender/${person.Gender}/Notes/${JSON.stringify(person.Notes)}`;
 
         // Make the API call to add the person
-        try {
-            const response = await fetch(updatedApiUrl, {
-                method: "GET",
-            });
-            const data = await response.json();
+        // NOTE: server generates unique id based on existing db
+        var jsonReply = await CommonTools.GetAPIPayload(apiUrl);
 
-            if (response.ok) {
-                console.log(`Person added successfully: ${data.Payload.Message}`);
-                return data.Payload;
-            } else {
-                console.error(`Error adding person: ${data.Payload.Message}`);
-                throw new Error(data.Payload.Message);
-            }
-        } catch (error) {
-            console.error(`Error adding person: ${error.message}`);
-            throw error;
-        }
+        //get first object (API call name)
+        var newPersonId = jsonReply[Object.keys(jsonReply)[0]];
+
+        return newPersonId;
     }
 
 }
@@ -3402,10 +3487,15 @@ class Person {
 
     /**
      * Gets the person's birth time.
-     * @returns {BirthTime}
+     * @returns {Time}
      */
     get BirthTime() {
         return this.birthTime;
+    }
+
+    // Get the display name with birth year for a person
+    get DisplayName() {
+        return `${this.Name} - ${this.BirthTime.getYear()}`;
     }
 
     /**
@@ -3526,6 +3616,17 @@ class Time {
         return birthDate.getFullYear();
     }
 
+    // Output TIME only for URL format
+    // time converted to the format used in OPEN API url
+    // Sample out : /Location/London/Time/00:00/01/01/2011/+00:00
+    toURL() {
+        // this will be called on instance of Time class
+        const stdTime = this.StdTime.replace(/\s+/g, "/"); // convert all spaces to slashes
+        const locationName = this.Location.Name.replace(/\s+/g, ""); // remove all spaces from location name
+
+        const finalUrl = `/Location/${locationName}/Time/${stdTime}`;
+        return finalUrl;
+    }
 }
 
 /**
@@ -3880,64 +3981,19 @@ class PersonSelectorBox {
 
     }
 
-    // we first check if the person lists are already 
-    // cached in the browser's local storage using `localStorage.getItem()`. 
-    // If the cached data exists, we parse it and assign it to the respective variables. 
-    // If the cache is empty, we proceed to fetch the data from the API as before.After fetching the data from the API, 
-    // we cache it in local storage using `localStorage.setItem()` to avoid making 
-    // unnecessary API calls on subsequent page loads.
+    //fetch list for use in this specific instance
     async initializePersonListData() {
-        // Check if person lists are already cached in local storage
-        const cachedPersonList = localStorage.getItem('personList');
-        const cachedPublicPersonList = localStorage.getItem('publicPersonList');
-
-        if (cachedPersonList && cachedPublicPersonList) {
-            // Parse the cached data
-            this.personList = JSON.parse(cachedPersonList);
-            this.personListDisplay = this.personList;
-            this.publicPersonList = JSON.parse(cachedPublicPersonList);
-            this.publicPersonListDisplay = this.publicPersonList;
-
-            console.log('Loaded person lists from cache.');
-        } else {
-            // Fetch private person list from the API
-            try {
-                const personListResponse = await fetch(`${window.vedastro.ApiDomain}/Calculate/GetPersonList/UserId/${window.vedastro.UserId}`);
-                const personListData = await personListResponse.json();
-                this.personList = personListData.Payload;
-                this.personListDisplay = this.personList;
-
-                // Cache the private person list
-                localStorage.setItem('personList', JSON.stringify(this.personList));
-
-                console.log('Loaded private person list from API.');
-            } catch (error) {
-                console.error('Error fetching private person list:', error);
-            }
-
-            // Fetch public person list from the API
-            try {
-                const publicPersonListResponse = await fetch(`${window.vedastro.ApiDomain}/Calculate/GetPersonList/UserId/101`);
-                const publicPersonListData = await publicPersonListResponse.json();
-                this.publicPersonList = publicPersonListData.Payload;
-                this.publicPersonListDisplay = this.publicPersonList;
-
-                // Cache the public person list
-                localStorage.setItem('publicPersonList', JSON.stringify(this.publicPersonList));
-
-                console.log('Loaded public person list from API.');
-            } catch (error) {
-                console.error('Error fetching public person list:', error);
-            }
-        }
+        // get person list from API or cache automatic
+        this.personList = await VedAstro.GetPersonList('private');
+        this.personListDisplay = this.personList;
+        this.publicPersonList = await VedAstro.GetPersonList('public');
+        this.publicPersonListDisplay = this.publicPersonList;
 
         // Get the previously selected person from local storage
-        const selectedPerson = JSON.parse(localStorage.getItem("selectedPerson"));
+        const selectedPerson = VedAstro.GetSelectedPerson();
 
         // If a selected person exists, simulate a click on their name
-        if (selectedPerson && Object.keys(selectedPerson).length !== 0) {
-            this.onClickPersonName(selectedPerson.PersonId); //todo could fail
-        }
+        selectedPerson && this.onClickPersonName(selectedPerson.PersonId);
     }
 
     // call `PersonSelectorBox.ClearPersonListCache('private')` to clear only the private person list cache,
@@ -3967,24 +4023,17 @@ class PersonSelectorBox {
     async onClickPersonName(personId) {
         // Get the full person details based on the ID
         var personData = this.getPersonDataById(personId);
-        var displayName = this.getPersonDisplayName(personData);
+        var displayName = personData.DisplayName;
 
         // Update the visible select button text
         var buttonTextHolder = $(`#${this.ElementID}`).find(`.${this.SelectedPersonNameHolderElementID}`);
         buttonTextHolder.html(displayName);
 
         // Save the selected person to local storage
-        var partialPerson = { PersonId: personId };
-        localStorage.setItem("selectedPerson", JSON.stringify(partialPerson));
+        VedAstro.SetSelectedPerson(personData);
 
         // Save the selected person ID for instance-specific selection
         this.selectedPersonId = personId;
-    }
-
-    // Get the display name with birth year for a person
-    getPersonDisplayName(person) {
-        const personInstance = new Person(person);
-        return `${personInstance.Name} - ${personInstance.BirthTime.getYear()}`;
     }
 
     // Handle keyup event on the search input field
@@ -4019,11 +4068,13 @@ class PersonSelectorBox {
 
         // Get previously selected person's name if available
         const selectedPerson = JSON.parse(localStorage.getItem("selectedPerson"));
-        let selectedPersonText = 'Select Person';
         if (selectedPerson && Object.keys(selectedPerson).length !== 0) {
             const personData = this.getPersonDataById(selectedPerson.PersonId);
             selectedPersonText = this.getPersonDisplayName(personData);
         }
+        var preSelected = VedAstro.GetSelectedPerson();
+        let selectedPersonText = preSelected?.DisplayName || 'Select Person';
+
 
         // Return the generated HTML for the component
         return `
@@ -4089,7 +4140,7 @@ class PersonSelectorBox {
     generatePublicPersonListHtml() {
         const html = this.publicPersonListDisplay
             .map((person) => {
-                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item" style="cursor: pointer;">${this.getPersonDisplayName(person)}</li>`;
+                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item" style="cursor: pointer;">${person.DisplayName}</li>`;
             })
             .join("");
 
@@ -4100,7 +4151,7 @@ class PersonSelectorBox {
     generatePersonListHtml() {
         const html = this.personListDisplay
             .map((person) => {
-                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item" style="cursor: pointer;">${this.getPersonDisplayName(person)}</li>`;
+                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item" style="cursor: pointer;">${person.DisplayName}</li>`;
             })
             .join("");
 
@@ -4130,6 +4181,10 @@ class InfoBox {
         // Assign the provided elementId to the ElementID property
         this.ElementID = elementId;
 
+        // Save a reference to this instance for global access
+        InfoBox.initInstances();
+        window.vedastro.InfoBoxInstances[elementId] = this;
+
         // Get the DOM element with the given ID
         const element = document.getElementById(elementId);
 
@@ -4140,6 +4195,7 @@ class InfoBox {
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
+
     }
 
     // Method to initialize the main body of the page header
@@ -4152,7 +4208,7 @@ class InfoBox {
     }
 
     // Handle keyup event on the search input field
-    static onClick(event) {
+    onClick(event) {
         console.log(event);
     }
 
@@ -4161,7 +4217,7 @@ class InfoBox {
         // Return the HTML for the page header, including conditional blocks for different screen sizes
         return `
       
-<div onClick="window.vedastro.InfoBox.onClick(event)" class="" style="cursor: pointer; max-width:365px;">
+<div onClick="window.vedastro.InfoBoxInstances['${this.ElementID}'].onClick(event)" class="" style="cursor: pointer; max-width:365px;">
     <div class="alert alert-primary d-flex align-items-center vstack p-2" role="alert" style="">
         <div class="hstack mb-2">
             <span class="iconify bi flex-shrink-0 me-2" data-icon="${this.IconName}" data-width="50"></span>
@@ -4175,6 +4231,16 @@ class InfoBox {
 
     `;
     }
+
+    static initInstances() {
+        if (!window.vedastro) {
+            window.vedastro = {};
+        }
+        if (!window.vedastro.InfoBoxInstances) {
+            window.vedastro.InfoBoxInstances = {};
+        }
+    }
+
 }
 
 /**
@@ -4555,15 +4621,16 @@ class GeoLocationInput {
                 <div class="input-group location-name">
                     <!-- HEADER ICON -->
                     <span class="input-group-text gap-2 py-1"><i class="iconify" data-icon="streamline-emojis:globe-showing-americas" data-width="34"></i>${this.LabelText}</span>
-                    <input id="${this.locationNameInputId}" onkeyup="window.vedastro.GeoLocationInputInstances['${this.ElementID}'].onUpdateLocationNameText(event)" type="text" class="form-control " placeholder="New York" style="font-weight: 600; font-size: 16px;" data-bs-toggle="dropdown">
+                    <input id="${this.locationNameInputId}" onkeyup="window.vedastro.GeoLocationInputInstances['${this.ElementID}'].onUpdateLocationNameText(event)" type="text" class="form-control " placeholder="New York" style="font-weight: 600; font-size: 16px;" data-bs-toggle="dropdown" onfocus="window.vedastro.GeoLocationInputInstances['${this.ElementID}'].onInputFocus(event)">
                     <ul id="${this.dropdownMenuId}" class="dropdown-menu" aria-labelledby="${this.locationNameInputId}">
                         <li><a class="dropdown-item text-muted" href="#">
-                            <i class="iconify" data-icon="grommet-icons:map" data-width="18"></i>
+                            <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img" width="18" height="18" viewBox="0 0 24 24" data-icon="grommet-icons:map" data-width="18" class="iconify iconify--grommet-icons"><path fill="none" stroke="currentColor" stroke-width="2" d="M15 15h4l3 7H2l3-7h4m4-7a1 1 0 1 1-2 0a1 1 0 0 1 2 0M6 8c0 5 6 10 6 10s6-5 6-10c0-3.417-2.686-6-6-6S6 4.583 6 8Z"></path></svg>
                             Search city, town, state</a>
                         </li>
                         <!-- DYNAMICLY GENERATED -->
                     </ul>
                 </div>
+
 
                 <!-- Latitude & long input -->
                 <div class="input-group d-none lat-lng-fields">
@@ -4657,6 +4724,14 @@ class GeoLocationInput {
             });
     }
 
+    onInputFocus(event) {
+        // Get the dropdown menu element that is associated with the input field that received focus
+        const dropdownMenu = event.target.closest(`#${this.ElementID}`).querySelector(`#${this.dropdownMenuId}`);
+
+        // Remove the 'd-none' class from the dropdown menu, which makes it visible
+        dropdownMenu.classList.remove("d-none");
+    }
+
     /**
      * Method to toggle the input fields.
      */
@@ -4701,8 +4776,11 @@ class GeoLocationInput {
     }
 
     isValid() {
-        // Check if all fields have been filled
-        return this.locationName !== "" && this.latitude !== "" && this.longitude !== "";
+        const locationName = document.querySelector(`#${this.ElementID} .location-name input`).value;
+        const latitude = document.querySelector(`#${this.ElementID} .latitude`).value;
+        const longitude = document.querySelector(`#${this.ElementID} .longitude`).value;
+
+        return locationName !== "" && latitude !== "" && longitude !== "";
     }
 }
 
@@ -4790,13 +4868,22 @@ class TimeLocationInput {
         const month = document.getElementById(timeInputSimple.MonthInputID).innerText;
         const year = document.getElementById(timeInputSimple.YearInputID).innerText;
 
+        //convert hour and minute from 12H to 24H
+        let hour24 = hour;
+        if (meridian === 'PM' && hour !== '12') {
+            hour24 = parseInt(hour) + 12;
+        } else if (meridian === 'AM' && hour === '12') {
+            hour24 = '00';
+        }
+
         // Get the location values from the input fields
         const locationName = document.querySelector(`#${geoLocationInput.ElementID} .location-name input`).value;
         const latitude = document.querySelector(`#${geoLocationInput.ElementID} .latitude`).value;
         const longitude = document.querySelector(`#${geoLocationInput.ElementID} .longitude`).value;
 
-        // Construct the StdTime string in the format "HH:MM DD/MM/YYYY +08:00"
-        const stdTime = `${hour}:${minute} ${date}/${month}/${year} +08:00`;
+        // Construct the StdTime string in the format "HH:MM DD/MM/YYYY tmz"
+        var timeZone = TimeLocationInput.getSystemTimezone(); // Format: +08:00
+        const stdTime = `${hour24.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${date.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year} ${timeZone}`;
 
         // Construct the Location object with Name, Longitude, and Latitude properties
         const location = {
@@ -4874,7 +4961,7 @@ class TimeLocationInput {
         return false;
     }
 
-   
+
 }
 
 

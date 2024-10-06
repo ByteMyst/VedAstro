@@ -39,6 +39,7 @@ namespace VedAstro.Library
         /// Represents permanent identity to this record, generated only once during creation
         /// made of human readable ID made of person name and birth year
         /// should be camel case, would look nicer
+        /// TODO change to PersonId since as client js is using that
         /// </summary>
         public string Id { get; set; }
 
@@ -412,7 +413,7 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Brings back Owner ID from Primary key & 
+        /// Given a partial person list row, will get full Person data with life events
         /// </summary>
         public static Person FromAzureRow(PersonListEntity rowData)
         {
@@ -423,7 +424,7 @@ namespace VedAstro.Library
             var newPerson = new Person(rowData.PartitionKey, personId, rowData.Name, birthTime, rowDataGender);
 
             //get person life event list (partition key = person id)
-            var lifeEvents = AzureTable.LifeEventList.Query<LifeEventRow>(call => call.PartitionKey == personId);
+            var lifeEvents = AzureTable.LifeEventList?.Query<LifeEventRow>(call => call.PartitionKey == personId);
 
             //convert to list
             var personJsonList = lifeEvents.Select(call => LifeEvent.FromAzureRow(call)).ToList();
