@@ -29,6 +29,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Azure.Storage.Blobs;
 using System.Net.Mime;
+using Microsoft.Extensions.Hosting;
 
 namespace VedAstro.Library
 {
@@ -367,7 +368,9 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// ...../api/Calculate/GeoLocationToTimezone/Location/Chennai,TamilNadu,India/Time/23:37/07/08/1990/+01:00
+        /// Gets all timezone given a location, accounts for Daylight savings & historical changes
+        /// Note : location name is not mandatory, it is there because location names can change, but coordinates are essential 
+        /// ...../api/Calculate/GeoLocationToTimezone/Location/Tokyo, Japan/Coordinates/35.65,139.83/Time/14:02/09/11/1977/+00:00
         /// </summary>
         public static async Task<string> GeoLocationToTimezone(GeoLocation geoLocation, DateTimeOffset timeAtLocation)
         {
@@ -551,6 +554,7 @@ namespace VedAstro.Library
             return possibleEndTime;
 
         }
+
 
 
         #endregion
@@ -4878,8 +4882,9 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// For all houses.
+        /// For all houses. 
         /// Calculate Lord of Star (Constellation) given Constellation. Returns Star Lord Name
+        /// TODO MARKED FOR OBLIVION CHECK WITH CP JOIS
         /// </summary>
         public static Dictionary<HouseName, PlanetName> AllHouseConstellationLord(Time time)
         {
@@ -4898,6 +4903,20 @@ namespace VedAstro.Library
             }
 
             return allHouses;
+        }
+
+        /// <summary>
+        /// Gets the constellation lord of a house at middle longitude of the house.
+        /// </summary>
+        public static PlanetName HouseConstellationLord(HouseName houseNumber, Time time)
+        {
+            // get constellation house is in middle longitude
+            var houseConste = Calculate.HouseConstellation(houseNumber, time);
+
+            //gets lord based on constellation
+            var calcResult = Calculate.LordOfConstellation(houseConste.GetConstellationName());
+
+            return calcResult;
         }
 
         /// <summary>
