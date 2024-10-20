@@ -3,9 +3,12 @@ updateHistory();
 
 new PageTopNavbar("PageTopNavbar");
 new DesktopSidebar("DesktopSidebarHolder");
-new PageHeader("HoroscopePageHeader");
-var horoscopePersonSelector = new PersonSelectorBox("PersonSelectorBox_Horoscope");
+new PageHeader("PageHeader");
+new PageFooter("PageFooter");
+
+var horoscopePersonSelector = new PersonSelectorBox("PersonSelectorBox");
 var ayanamsaSelector = new AyanamsaSelectorBox("AyanamsaSelectorBox");
+var strengthChart = new StrengthChart("StrengthChartHolder");
 new IconButton("IconButton_Calculate_Horoscope");
 new IconButton("IconButton_Advanced_Horoscope");
 
@@ -30,7 +33,10 @@ async function OnClickCalculate_Horoscope() {
     $("#SidebarInfoBoxHolder").slideUp(500);
 
     //get full data of selected person
-    let selectedPerson = await horoscopePersonSelector.getSelectedPerson();
+    let selectedPerson = await horoscopePersonSelector.GetSelectedPerson();
+
+    //if no selected person then ask user if sleeping 😴
+    if (selectedPerson == null) { Swal.fire({ icon: 'error', title: 'Please select person, sir! 🙄', showConfirmButton: true }); }
 
     //update page title with person name to for easy multi tab use (UX ease)
     document.title = `${selectedPerson.DisplayName} | Horoscope`;
@@ -39,7 +45,9 @@ async function OnClickCalculate_Horoscope() {
     var timeUrl = selectedPerson.BirthTime.ToUrl();
     timeUrl = timeUrl.substring(1) + "/"; //remove leading / and add trailing / (minor format correction)
 
-    //show planet data table
+    //generate tables and charts
+    await initHoroscopeChart(timeUrl);
+    await initStrengthChart(timeUrl);
     await initPlanetDataTable(timeUrl);
     await initHouseDataTable(timeUrl);
     await initAshtakvargaTable(timeUrl);
@@ -48,7 +56,32 @@ async function OnClickCalculate_Horoscope() {
     Swal.close();
 }
 
+async function initHoroscopeChart(birthTimeUrl) {
+
+    var settingsHoroscopeChat = {
+        ElementID: "HoroscopeChat",
+        ShowHeader: true,
+        HeaderIcon: "fluent:table-28-filled",
+        SelectedBirthTime: birthTimeUrl,
+        //Ayanamsa: ayanamsaSelector.SelectedAyanamsa //NOTE: hard set to Raman in Server since all predictions are from Raman 
+    };
+
+    //note: on init, chat instance is loaded into window.vedastro.horoscopechat
+    new HoroscopeChat(settingsHoroscopeChat);
+}
+async function initStrengthChart(birthTimeUrl) {
+
+    //data used to generate table
+    var inputArguments = {
+        TimeUrl: birthTimeUrl,
+        Ayanamsa: ayanamsaSelector.SelectedAyanamsa
+    };
+
+    strengthChart.GenerateChart(inputArguments);
+}
+
 async function initPlanetDataTable(birthTimeUrl) {
+
     //----------------------PLANET DATA----------------------------
     var planetColumns = [
         { Api: "PlanetZodiacSign", Enabled: true, Name: "Sign" },
@@ -78,7 +111,7 @@ async function initPlanetDataTable(birthTimeUrl) {
 
     //data used to generate table
     var inputArguments = {
-        TimeUrl: birthTimeUrl, //note
+        TimeUrl: birthTimeUrl,
         HoraryNumber: 0,
         RotateDegrees: 0,
         Ayanamsa: ayanamsaSelector.SelectedAyanamsa

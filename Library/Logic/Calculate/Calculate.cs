@@ -101,7 +101,7 @@ namespace VedAstro.Library
         /// </summary>
         public static async Task<string> AddPerson(string ownerId, Time birthTime, string personName, Gender gender, string notes = "", bool failIfDuplicate = false)
         {
-            //special ID made for human brains 🧠
+            //special ID made for human brains 🧠 (unique in whole DB)
             var brandNewHumanReadyId = await PersonManagerTools.GeneratePersonId(ownerId, personName, birthTime.StdYearText, failIfDuplicate);
 
             //make new person
@@ -164,10 +164,14 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Gets person list
+        /// Gets person list, with auto swap persons from visitor to logged in account if user id is not 101
+        /// if user id is 101 (guest), then visitor id can be ommited on call
         /// </summary>
-        public static async Task<JArray> GetPersonList(string ownerId)
+        public static async Task<JArray> GetPersonList(string ownerId, string visitorId = "")
         {
+            //STAGE 1 : swap visitor ID with user ID if any (data follows user when log in)
+            await SwapUserId(ownerId, visitorId);
+
             //get raw person data from main person list (partial without life events)
             var foundCalls = AzureTable.PersonList.Query<PersonListEntity>(call => call.PartitionKey == ownerId);
 
@@ -178,8 +182,41 @@ namespace VedAstro.Library
             //send to caller
             return personJsonList;
 
+
+            async Task SwapUserId(string ownerId, string visitorId)
+            {
+                //if both same no swap needed
+                if (ownerId == visitorId) { return; }
+
+                //if not yet logged in then skip
+                if (ownerId == "101") { return; }
+
+                //get all person's under visitor id
+                var visitorIdPersons = AzureTable.PersonList.Query<PersonListEntity>(call => call.PartitionKey == visitorId);
+
+                //if no records, then end here
+                if (!visitorIdPersons.Any()) { return; }
+
+                //transfer each person one by one
+                foreach (var personOriRecord in visitorIdPersons)
+                {
+                    //1: make duplicate record with new owner id
+                    //overwrite visitor id with user id
+                    var modifiedPerson = personOriRecord.Clone();
+                    modifiedPerson.PartitionKey = ownerId;
+                    AzureTable.PersonList.AddEntity(modifiedPerson);
+
+                    //2: delete original "visitor" record 
+                    await AzureTable.PersonList.DeleteEntityAsync(personOriRecord.PartitionKey, personOriRecord.RowKey);
+                }
+
+            }
+
         }
 
+        /// <summary>
+        /// Given a person id will get person's data, owner id is needed for privacy protection
+        /// </summary>
         public static async Task<Person> GetPerson(string ownerId, string personId)
         {
             //get person from database matching user & owner ID (also checks shared list)
@@ -796,7 +833,7 @@ namespace VedAstro.Library
         /// <summary>
         /// Ask questions to AI astrologer about life horoscope predictions
         /// </summary>
-        /// <param name="birthTime">time of person hprtson horoscope to check</param>
+        /// <param name="birthTime">time of person persons horoscope to check</param>
         /// <param name="userQuestion">question related horoscope</param>
         /// <param name="chatSession"></param>
         /// <returns></returns>
@@ -1311,7 +1348,8 @@ namespace VedAstro.Library
         public static ZodiacSign ChaturthamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.ChaturthamshaTable[zodiacSign.GetSignName()], 4);
 
 
-
+        //------------ D5 ------------
+        //WAITING TO BE DONE
 
         /// <summary>
         /// Gets list of all planets and the zodiac signs they are in
@@ -1443,7 +1481,6 @@ namespace VedAstro.Library
             }
 
         }
-
 
         /// <summary>
         /// Annual or Progressed Horoscope
@@ -10791,16 +10828,13 @@ namespace VedAstro.Library
         /// You can also set how many levels of dasa you want to calculate, default is 4
         /// 7 Levels : Dasa > Bhukti > Antaram > Sukshma > Prana > Avi Prana > Viprana
         /// </summary>
-        /// <param name="levels">range 1 to 7,coresponds to bhukti, antaram, etc..., lower is faster</param>
+        /// <param name="levels">range 1 to 7, coresponds to Dasa, Bhukti, Antaram, Sukshma etc..., lower is faster</param>
         /// <param name="scanYears">time span to calculate, defaults 100 years, average life</param>
-        /// <param name="precisionHours"> defaults to 21 days, higher is faster
-        /// set how accurately the start & end time of each event is calculated
-        /// exp: setting 1 hour, means given in a time range of 100 years, it will be checked 876600 times 
-        /// </param>
-        public static JObject DasaForLife(Time birthTime, int levels = 3, int precisionHours = 100, int scanYears = 100)
+        /// <param name="precisionHours">defaults to 24 hours, since any number above that causes dasa end & start time to not allign</param>
+        public static JObject DasaForLife(Time birthTime, int levels = 3, int precisionHours = 24, int scanYears = 100)
         {
             //TODO NOTE:
-            //precisionHours limits the levels that can be calculated (because of 0 filtering)
+            //precisionHours limits the levels that can be calculated (because of 0 duration filtering)
 
             //based on scan years, set start & end time
             Time startTime = birthTime;

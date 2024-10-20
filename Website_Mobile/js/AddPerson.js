@@ -3,7 +3,8 @@ updateHistory();
 
 new PageTopNavbar("PageTopNavbar");
 new DesktopSidebar("DesktopSidebarHolder");
-new PageHeader("AddPersonPageHeader");
+new PageHeader("PageHeader");
+new PageFooter("PageFooter");
 new InfoBox("InfoBox_EasyImport_AddPerson");
 new InfoBox("InfoBox_Private_AddPerson");
 new InfoBox("InfoBox_ForgotenTime_AddPerson");
@@ -18,7 +19,7 @@ async function OnClickSave_AddPerson() {
 
     // if not logged in tell user what the f he is doing
     if (VedAstro.IsGuestUser()) {
-        const loginLink = `<a target="_blank" style="text-decoration-line: none;" onclick="navigateToPage(this)" class="link-primary fw-bold">logged in</a>`;
+        const loginLink = `<a href="./Login.html" target="_blank" style="text-decoration-line: none;" class="link-primary fw-bold">logged in</a>`;
         const result = await Swal.fire({
             icon: 'info',
             title: 'Remember!',
@@ -44,7 +45,7 @@ async function OnClickSave_AddPerson() {
     const person = await getPersonInstanceFromInput();
 
     // send newly created person to API server (server gives back unique ID 🆕)
-    const newPersonId = await CommonTools.AddPerson(person);
+    const newPersonId = await AddPerson(person);
 
     // update new id, before saving into browser storage
     person.PersonId = newPersonId;
@@ -68,10 +69,36 @@ async function OnClickSave_AddPerson() {
     });
 
     // wait a little and send user back to previous page (reloaded & not via "Back" functionality to avoid caching)
-    setTimeout(() => {
-        navigateToPreviousPage();
-    }, 1500);
+    setTimeout(() => { navigateToPreviousPage(); }, 1500);
 }
+
+// Add a person to the Vedastro API
+// returns newly created ID for person
+async function AddPerson(person) {
+
+    // convert to birth time to correct URL format
+    var timeUrl = person.BirthTime.ToUrl(); // sample: /Location/Singapore/Time/00:00/24/06/2024
+
+    //construct URL to save Person in API Server 
+    const apiUrl = [
+        `${VedAstro.ApiDomain}/Calculate/AddPerson/`,
+        `OwnerId/${VedAstro.IsGuestUser() ? VedAstro.VisitorId : VedAstro.UserId}`, //if guest use visitor id, else use user id
+        `${timeUrl}`,
+        `/PersonName/${person.Name}`,
+        `/Gender/${person.Gender}`,
+        `/Notes/${JSON.stringify(person.Notes)}`
+    ].join('');
+
+    // Make the API call to add the person
+    // NOTE: server generates unique id based on existing db
+    var jsonReply = await CommonTools.GetAPIPayload(apiUrl);
+
+    //get first object (API call name)
+    var newPersonId = jsonReply[Object.keys(jsonReply)[0]];
+
+    return newPersonId;
+}
+
 
 //brings together all the individual data for making person 
 //profile from page into 1 parsed Person instance object
