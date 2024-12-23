@@ -50,13 +50,15 @@ public class SearchAddressGeoLocationEntity : ITableEntity
     public ETag ETag { get; set; }
 
 
+    /// <summary>
+    /// Used by API SearchLocation
+    /// </summary>
     public List<GeoLocation> ToGeoLocationList()
     {
         try
         {
-            //if empty name then fail
+            //if empty name then return empty
             if (string.IsNullOrEmpty(PartitionKey)) { return new List<GeoLocation>(); }
-
 
             //parse string into jobject
             var parsedListJson = JArray.Parse(Results);
@@ -75,4 +77,6 @@ public class SearchAddressGeoLocationEntity : ITableEntity
             return new List<GeoLocation>();
         }
     }
+
+
 }

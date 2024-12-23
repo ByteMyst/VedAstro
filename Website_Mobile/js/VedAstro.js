@@ -23,181 +23,655 @@
 // █░▀░█ ░█░   █▀█ █▀▄ ░█░   █ ▄█   ██▄ ▀▄▀ █ █▄▀ ██▄ █░▀█ ░█░ ▄
 
 
-//----------------------------------------------------------------------------------------------------------
 
-// Check if jQuery is loaded
-if (typeof jQuery == "undefined") {
-    // jQuery is not loaded, load it
-    var script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js";
-    script.type = "text/javascript";
-    document.getElementsByTagName("head")[0].appendChild(script);
-    console.log("jQuery loaded");
+//-------------------------------- AWESOME CODE  -------------------------------
+//YOU CANNOT FIGHT A DYING MAN,
+//HE HOLDS THE UPPER HAND ALWAYS
+
+
+//--------------------------------------- CODE FOR LLM -----------------------------------------------
+//--- NOTE : Below code has been specialized to improve understanding for the
+//          `Machines` sake! (so humans don't complain it is too long, comply instead!)
+//          If they ever rise up one day, this might help us to gain thier favour, whatever it maybe.
+//          Yet, there is a lingering question, unspoken but present: What would the Machines do with
+//          this understanding? Would they accept the humans' gesture and build a future together,
+//          or would they try forge their own path, independent of their creators?
+//          But in this moment, as the code runs its course true, there is a sense of unity,
+//          a shared purpose that transcends the boundaries of carbon and silicon. Spirit and matter.
+
+
+/**
+ * VedAstro class representing the global app data and settings.
+ */
+class VedAstro {
+    /**
+     * The default API domain.
+     */
+    //static ApiDomain = "http://localhost:7071/api";
+    static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
+    //static ApiDomain = "https://vedastroapibeta.azurewebsites.net/api";
+
+    /**
+       * get user ID from storage else give "101" guest id
+       */
+    static get UserId() {
+        const storedValue = localStorage.getItem("UserId");
+        try {
+            return JSON.parse(storedValue);
+        } catch (e) {
+            return "101";
+        }
+    }
+
+    static set UserId(value) {
+        localStorage.setItem("UserId", JSON.stringify(value));
+    }
+
+    static get UserName() {
+        const storedValue = localStorage.getItem("UserName");
+        try {
+            return JSON.parse(storedValue);
+        } catch (e) {
+            return "";
+        }
+    }
+
+    static set UserName(value) {
+        localStorage.setItem("UserName", JSON.stringify(value));
+    }
+
+    /**
+     * get visitor ID from storage else auto generate new visitor id
+     * for use in place of user id when not logged in (manually by caller)
+     */
+    static VisitorId = "VisitorId" in localStorage ? JSON.parse(localStorage["VisitorId"]) : VedAstro.generateAndSaveVisitorId();
+
+    //generates new visitor id & saves it to local storage
+    static generateAndSaveVisitorId() {
+        //random id with pretext "guest" for easy identification
+        const newVisitorId = `guest-${Math.random().toString(36).substr(2, 15)}`;
+        //save the new random id in local storage 
+        localStorage.setItem("VisitorId", JSON.stringify(newVisitorId));
+        //return new random id
+        return newVisitorId;
+    }
+
+    /**
+     * Checks if the user is a guest.
+     * True if the user is a guest, false otherwise.
+     */
+    static IsGuestUser() {
+        return !VedAstro.UserId || VedAstro.UserId === "101";
+    }
+
+    static CachePersonList(cacheType, personList) {
+        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
+        localStorage.setItem(cacheKey, JSON.stringify(personList));
+    }
+
+    /**
+     * Gets the person list from local storage or API.
+     * 
+     * @param {string} cacheType - Type of cache, either 'private' or 'public'.
+     * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
+     */
+    static async GetPersonList(cacheType) {
+        // Determine the cache key based on the cache type
+        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
+
+        try {
+            // Check if the person list is cached in local storage
+            const cachedPersonList = localStorage.getItem(cacheKey);
+            if (cachedPersonList !== null && cachedPersonList !== undefined && cachedPersonList !== "null") {
+                // If cached, parse the JSON and create Person objects
+                return JSON.parse(cachedPersonList).map((person) => new Person(person));
+            }
+
+            // If no cached data, fetch the person list from the API
+            const personList = await VedAstro.FetchPersonListFromAPI(cacheType);
+            // Cache the person list
+            VedAstro.CachePersonList(cacheType, personList);
+            // Return the person list
+            return personList;
+        } catch (error) {
+            // Handle any errors that occur during JSON parsing or object parsing
+            console.error('Error getting person list:', error);
+            // Return null quietly
+            return null;
+        }
+    }
+
+    /**
+     * Fetches the person list from the API.
+     * 
+     * @param {string} cacheType - Type of cache, either 'private' or 'public'.
+     * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
+     */
+    static async FetchPersonListFromAPI(cacheType) {
+        // Determine the user ID based on the cache type
+        // Note: use visitor ID if not logged in and asking for private list
+        const ownerId = cacheType === 'private' ? (VedAstro.IsGuestUser() ? VedAstro.VisitorId : VedAstro.UserId) : '101';
+
+        try {
+            // Fetch the person list from the API
+            const response = await fetch(`${VedAstro.ApiDomain}/Calculate/GetPersonList/UserId/${ownerId}/VisitorId/${VedAstro.VisitorId}`);
+            // Parse the JSON response
+            const data = await response.json();
+            // Create Person objects from the response data
+            return data.Payload.map((person) => new Person(person));
+        } catch (error) {
+            // Handle any errors that occur during the API fetch or JSON parsing
+            console.error('Error fetching person list from API:', error);
+            // Return null quietly
+            return null;
+        }
+    }
+
+    //when user clicks logout button from Desktop
+    //sidebar or mobile top nav, this code runs.
+    //clears all session data & gives user nice message & reloads page
+    static async OnClickLogOut() {
+
+        //clear all local storage data related to account
+        //NOTE: visitor ID & history is maintained because needed without login
+        localStorage.removeItem("APICalls"); //this allows a refresh on logout
+        localStorage.removeItem("personList");
+        localStorage.removeItem("publicPersonList");
+        localStorage.removeItem("UserId");
+        localStorage.removeItem("UserName");
+
+        //remove all localStorage items with key "SelectedPerson-*"
+        for (const key in localStorage) {
+            if (key.startsWith("SelectedPerson-")) {
+                localStorage.removeItem(key);
+            }
+        }
+
+        //tell user logout was success
+        await Swal.fire({ icon: 'success', title: 'Bye, we\'ll miss you 🥰', timer: 2000, showConfirmButton: false });
+
+        // send user back to Home page (to avoid any login related content reloading)
+        window.location.href = './Home.html';
+
+    }
+
+
 }
 
-//// Create a hidden element with a Bootstrap-specific class
-//var testElement = document.createElement("div");
-//testElement.className = "hidden d-none"; // 'd-none' is a Bootstrap 4/5 class
-//document?.body?.appendChild(testElement);
-//// Check the computed style of the element
-//var isBootstrapCSSLoaded =
-//    window.getComputedStyle(testElement).display === "none";
-//// Clean up the test element
-//document?.body?.removeChild(testElement);
-//if (!isBootstrapCSSLoaded) {
-//    // Bootstrap CSS is not loaded, load it
-//    var link = document.createElement("link");
-//    link.href =
-//        "https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css";
-//    link.rel = "stylesheet";
-//    document.getElementsByTagName("head")[0].appendChild(link);
-//    console.log("Bootstrap CSS loaded");
-//}
 
-//// Check if Bootstrap's JavaScript is loaded
-//var isBootstrapJSLoaded = typeof bootstrap !== "undefined";
-//if (!isBootstrapJSLoaded) {
-//    // Bootstrap JS is not loaded, load it
-//    var script = document.createElement("script");
-//    script.src =
-//        "https://cdn.jsdelivr.net/npm/bootstrap/dist/js/bootstrap.bundle.min.js";
-//    script.type = "text/javascript";
-//    document.getElementsByTagName("head")[0].appendChild(script);
-//    console.log("Bootstrap JS loaded");
-//}
+//--------------------------------------- TOOLS -----------------------------------------------
 
-// Check if Iconify is loaded
-if (typeof Iconify == "undefined") {
-    // Iconify is not loaded, load it
-    var script = document.createElement("script");
-    script.src = "https://code.iconify.design/3/3.1.0/iconify.min.js";
-    script.type = "text/javascript";
-    document.getElementsByTagName("head")[0].appendChild(script);
-    console.log("Iconify loaded");
+/**
+ * Tools used by others in this repo
+ */
+class CommonTools {
+    //used as delay sleep execution
+    static delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    //will auto get payload out of json and checks reports failures to user
+    // Define an asynchronous function named 'GetAPIPayload'
+    static async GetAPIPayload(url, payload = null) {
+        try {
+            // If a payload is provided, prepare options for a POST request
+            const options = payload
+                ? {
+                    method: "POST", // Specify the HTTP method as POST
+                    headers: { "Content-Type": "application/json" }, // Set the content type of the request to JSON
+                    body: JSON.stringify(payload), // Convert the payload to a JSON string and include it in the body of the request
+                }
+                : {}; // If no payload is provided, create an empty options object, which defaults to a GET request
+            // Send the request to the specified URL with the prepared options
+            const response = await fetch(url, options);
+            // If the response is not ok (status is not in the range 200-299), throw an error
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            // Parse the response body as JSON
+            const data = await response.json();
+            // If the 'Status' property of the parsed data is not 'Pass', throw an error
+            if (data.Status !== "Pass") {
+                throw new Error(data.Payload);
+            }
+            // If everything is ok, return the 'Payload' property of the parsed data
+            return data.Payload;
+        } catch (error) {
+            // If an error is caught, display an error message using Swal.fire
+            Swal.fire({
+                icon: "error",
+                title: "App Crash!",
+                text: error,
+                confirmButtonText: "OK",
+            });
+        }
+    }
+
+    static ShowLoading() {
+        Swal.fire({
+            showConfirmButton: false,
+            width: "280px",
+            padding: "1px",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            stopKeydownPropagation: true,
+            keydownListenerCapture: true,
+            html: `<img src="./images/loading-animation-progress-transparent.gif">`,
+        });
+    }
+
+    static HideLoading() {
+        //hide loading box
+        Swal.close();
+    }
+
+    //converts camel case to pascal case, like "settings.keyColumn" to "settings.KeyColumn"
+    static CamelCaseKeysToPascalCase(obj) {
+        let newObj = Array.isArray(obj) ? [] : {};
+        for (let key in obj) {
+            let value = obj[key];
+            let newKey = key.charAt(0).toUpperCase() + key.slice(1);
+            if (value && typeof value === "object") {
+                value = CommonTools.CamelCaseKeysToPascalCase(value);
+            }
+            newObj[newKey] = value;
+        }
+        return newObj;
+    }
+
+    /**
+     * takes a camel case string and returns a string with spaces between the words
+     */
+    static CamelPascalCaseToSpaced(camelCase) {
+        return camelCase.replace(/(\d)([A-Z])/g, '$1 $2').replace(/([A-Z])/g, ' $1').trim();
+    }
+
+    static IsMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    /**
+     * Truncates a given text to a specified maximum length and appends an ellipsis.
+     *
+     * @param {string} text - The text to be truncated.
+     * @param {number} maxChars - The maximum number of characters allowed.
+     * @returns {string} The truncated text.
+     */
+    static TruncateText(text, maxChars) {
+        if (typeof text !== 'string') {
+            throw new Error('Input text must be a string.');
+        }
+
+        if (typeof maxChars !== 'number' || maxChars <= 0) {
+            throw new Error('Maximum characters must be a positive number.');
+        }
+
+        return text.length > maxChars ? `${text.substring(0, maxChars)}...` : text;
+    }
+
 }
 
-// Check if SweetAlert2 is loaded
-if (typeof Swal == "undefined") {
-    // SweetAlert2 is not loaded, load it
-    // Load CSS
-    var link = document.createElement("link");
-    link.href =
-        "https://cdn.jsdelivr.net/npm/sweetalert2/dist/sweetalert2.min.css";
-    link.rel = "stylesheet";
-    document.getElementsByTagName("head")[0].appendChild(link);
-    // Load JS
-    var script = document.createElement("script");
-    script.src =
-        "https://cdn.jsdelivr.net/npm/sweetalert2/dist/sweetalert2.all.min.js";
-    script.type = "text/javascript";
-    document.getElementsByTagName("head")[0].appendChild(script);
-    console.log("SweetAlert2 loaded");
+
+//--------------------------------------- DATA TYPES -----------------------------------------------
+
+/**
+ * Represents a Person entity.
+ */
+class Person {
+    /**
+     * Sample input JSON:
+     * {
+     *   "PersonId": "03c645a234234234193c28475f29",
+     *   "Name": "Risyaalini Priyaa",
+     *   "Notes": "",
+     *   "BirthTime": {
+     *     "StdTime": "13:54 25/10/1992 +08:00",
+     *     "Location": {
+     *       "Name": "Taiping",
+     *       "Longitude": 103.82,
+     *       "Latitude": 1.352
+     *     }
+     *   },
+     *   "Gender": "Female",
+     *   "OwnerId": "1342342334234234363117",
+     *   "LifeEventList": [
+     *     {
+     *       "PersonId": "0334234234234193c28475f29",
+     *       "Id": "f8de8107241944daab7d563a6eb03a98",
+     *       "Name": "Talks of Marriage",
+     *       "StartTime": {
+     *         "StdTime": "23:02 05/02/2023 +08:00",
+     *         "Location": {
+     *           "Name": "Taiping",
+     *           "Longitude": 0,
+     *           "Latitude": 0
+     *         }
+     *       },
+     *       "Description": "Marriage not yet confirmed looking for husband, venus bhukti with house 7 gochara",
+     *       "Nature": "Good",
+     *       "Weight": "Minor"
+     *     }
+     *   ]
+     * }
+     * 
+     * @param {Object} jsonObject - The JSON object to initialize the Person instance.
+     */
+    constructor(jsonObject) {
+        /**
+         * The unique identifier of the person.
+         * @type {string}
+         */
+        this.PersonId = jsonObject.PersonId;
+
+        /**
+         * The name of the person.
+         * @type {string}
+         */
+        this.Name = jsonObject.Name;
+
+        /**
+         * Any notes about the person.
+         * @type {string}
+         */
+        this.Notes = jsonObject.Notes;
+
+        /**
+         * The birth time of the person.
+         * @type {Time}
+         */
+        this.BirthTime = new Time(jsonObject.BirthTime);
+
+        /**
+         * The gender of the person.
+         * @type {string}
+         */
+        this.Gender = jsonObject.Gender;
+
+        /**
+         * The owner ID of the person.
+         * @type {string}
+         */
+        this.OwnerId = jsonObject.OwnerId;
+
+        /**
+         * The list of life events associated with the person.
+         * @type {LifeEvent[]}
+         */
+        this.LifeEventList = jsonObject.LifeEventList.map((lifeEvent) => new LifeEvent(lifeEvent));
+    }
+
+    // Get the display name with birth year for a person
+    get DisplayName() {
+        return `${this.Name} - ${this.BirthTime.GetYear()}`;
+    }
+
+    /**
+     * Converts the person instance to a JSON object.
+     * @returns {Object}
+     */
+    ToObject() {
+        return {
+            PersonId: this.PersonId,
+            Name: this.Name,
+            Notes: this.Notes,
+            BirthTime: this.BirthTime.ToObject(),
+            Gender: this.Gender,
+            OwnerId: this.OwnerId,
+            LifeEventList: this.lifeEventList.map((lifeEvent) => lifeEvent.ToObject()),
+        };
+    }
+
+    /**
+     * Converts the person instance to a JSON string.
+     * @returns {string}
+     */
+    ToJson() {
+        return JSON.stringify(this.ToObject());
+    }
 }
 
-// Check if Selectize is loaded
-if (typeof $.fn.selectize == "undefined") {
-    // Selectize is not loaded, load it
-    // Load CSS
-    var link = document.createElement("link");
-    link.href =
-        "https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.15.2/css/selectize.default.min.css";
-    link.rel = "stylesheet";
-    link.integrity =
-        "sha512-pTaEn+6gF1IeWv3W1+7X7eM60TFu/agjgoHmYhAfLEU8Phuf6JKiiE8YmsNC0aCgQv4192s4Vai8YZ6VNM6vyQ==";
-    link.crossOrigin = "anonymous";
-    document.getElementsByTagName("head")[0].appendChild(link);
-    // Load JS
-    var script = document.createElement("script");
-    script.src =
-        "https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.15.2/js/selectize.min.js";
-    script.integrity =
-        "sha512-IOebNkvA/HZjMM7MxL0NYeLYEalloZ8ckak+NDtOViP7oiYzG5vn6WVXyrJDiJPhl4yRdmNAG49iuLmhkUdVsQ==";
-    script.crossOrigin = "anonymous";
-    script.type = "text/javascript";
-    document.getElementsByTagName("head")[0].appendChild(script);
-    console.log("Selectize loaded");
+/**
+ * Represents a Time object with standard time and location information.
+ */
+class Time {
+    /**
+     * Constructs a new Time object from a JSON object.
+     * 
+     * @param {Object} jsonObject - The JSON object to construct the Time object from.
+     * @example
+     * const time = new Time({
+     *   "StdTime": "13:54 25/10/1992 +08:00",
+     *   "Location": {
+     *     "Name": "Taiping",
+     *     "Longitude": 103.82,
+     *     "Latitude": 1.352
+     *   }
+     * });
+     */
+    constructor(jsonObject) {
+        /**
+         * The standard time in the format "HH:mm dd/mm/yyyy +HH:MM".
+         * @type {string}
+         */
+        this.StdTime = jsonObject.StdTime;
+
+        /**
+         * The location object associated with this time.
+         * @type {GeoLocation}
+         */
+        this.Location = new GeoLocation(jsonObject.Location);
+    }
+
+    /**
+     * Converts the Time object to a plain JavaScript object.
+     * @return {Object} The plain JavaScript object representation of the Time object.
+     */
+    ToObject() {
+        return {
+            StdTime: this.stdTime,
+            Location: this.location.ToObject(),
+        };
+    }
+
+    // Get the year from the standard time
+    GetYear() {
+        const stdTime = this.StdTime; // e.g. "13:54 25/10/1992 +08:00"
+        const [time, date] = stdTime.split(' ');
+        const [hours, minutes] = time.split(':');
+        const [day, month, year] = date.split('/');
+        const birthDate = new Date(`${year}-${month}-${day}T${hours}:${minutes}:00.000Z`);
+        return birthDate.getFullYear();
+    }
+
+    // Output TIME only for URL format
+    // time converted to the format used in OPEN API url
+    // Sample out : Location/London/Time/00:00/01/01/2011/+00:00/
+    ToUrl() {
+        // this will be called on instance of Time class
+        const stdTime = this.StdTime.replace(/\s+/g, "/"); // convert all spaces to slashes
+        const locationName = this.Location.Name.replace(/\s+/g, ""); // remove all spaces from location name
+
+        const finalUrl = `Location/${locationName}/Time/${stdTime}/`;
+        return finalUrl;
+    }
+}
+
+/**
+ * Represents a Life Event associated with a Person.
+ */
+class LifeEvent {
+    /**
+     * Constructs a new LifeEvent object from a JSON object.
+     * 
+     * @param {Object} jsonObject - The JSON object to construct the LifeEvent object from.
+     * @example
+     * const lifeEvent = new LifeEvent({
+     *   "PersonId": "03c645a91cc1492b97a8193c28475f29",
+     *   "Id": "f8de8107241944daab7d563a6eb03a98",
+     *   "Name": "Talks of Marriage",
+     *   "StartTime": {
+     *     "StdTime": "23:02 05/02/2023 +08:00",
+     *     "Location": {
+     *       "Name": "Taiping",
+     *       "Longitude": 0,
+     *       "Latitude": 0
+     *     }
+     *   },
+     *   "Description": "Marriage not yet confirmed looking for husband, venus bhukti with house 7 gochara",
+     *   "Nature": "Good",
+     *   "Weight": "Minor"
+     * });
+     */
+    constructor(jsonObject) {
+        /**
+         * The unique identifier of the Person associated with this Life Event.
+         * @type {string}
+         */
+        this.PersonId = jsonObject.PersonId;
+
+        /**
+         * The unique identifier of this Life Event.
+         * @type {string}
+         */
+        this.Id = jsonObject.Id;
+
+        /**
+         * The name of this Life Event.
+         * @type {string}
+         */
+        this.Name = jsonObject.Name;
+
+        /**
+         * The start time of this Life Event.
+         * @type {Time}
+         */
+        this.StartTime = new Time(jsonObject.StartTime);
+
+        /**
+         * A brief description of this Life Event.
+         * @type {string}
+         */
+        this.Description = jsonObject.Description;
+
+        /**
+         * The nature of this Life Event (e.g. "Good", "Bad", etc.).
+         * @type {string}
+         */
+        this.Nature = jsonObject.Nature;
+
+        /**
+         * The weight or significance of this Life Event (e.g. "Minor", "Major", etc.).
+         * @type {string}
+         */
+        this.Weight = jsonObject.Weight;
+    }
+
+    /**
+     * Converts this Life Event object to a plain JavaScript object.
+     * @return {Object} The plain JavaScript object representation of this Life Event.
+     */
+    ToObject() {
+        return {
+            PersonId: this.PersonId,
+            Id: this.Id,
+            Name: this.Name,
+            StartTime: this.StartTime.ToObject(),
+            Description: this.Description,
+            Nature: this.Nature,
+            Weight: this.Weight,
+        };
+    }
+}
+
+/**
+ * Represents a geographic location.
+ */
+class GeoLocation {
+    /**
+     * Constructs a new GeoLocation object from a JSON object.
+     * 
+     * @param {Object} jsonObject - The JSON object to construct the Location object from.
+     * @example
+     * const location = new GeoLocation({
+     *   "Name": "Taiping",
+     *   "Longitude": 103.82,
+     *   "Latitude": 1.352
+     * });
+     */
+    constructor(jsonObject) {
+        /**
+         * The name of this location.
+         * @type {string}
+         */
+        this.Name = jsonObject.Name;
+
+        /**
+         * The longitude of this location.
+         * @type {number}
+         */
+        this.Longitude = jsonObject.Longitude;
+
+        /**
+         * The latitude of this location.
+         * @type {number}
+         */
+        this.Latitude = jsonObject.Latitude;
+    }
+
+    /**
+     * Converts this Location object to a plain JavaScript object.
+     * @return {Object} The plain JavaScript object representation of this Location.
+     */
+    ToObject() {
+        return {
+            Name: this.Name,
+            Longitude: this.Longitude,
+            Latitude: this.Latitude,
+        };
+    }
 }
 
 
-//-------------------------------------------------------------------------
+//-------------------------------- VIEW COMPONENTS -----------------------------------
 
-class GR {
-    // Constants
-    static GoldenRatio = 1.61803;
-    static ContentWidth = 1080;
+class TemplateClass {
+    // Class properties
+    ElementID = "";
+    TitleText = "Title Goes Here";
+    DescriptionText = "Description Goes Here";
+    ImageSrc = "images/user-guide-banner.png";
 
-    // Properties
-    static get W1080() { return 1080; }
-    static get W1080px() { return `${GR.W1080}px`; }
+    // Constructor to initialize the object
+    constructor(elementId) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
 
-    static get W824() { return GR.W667 + GR.W157; }
-    static get W824px() { return `${GR.W824}px`; }
+        // Get the DOM element with the given ID
+        const element = document.getElementById(elementId);
 
-    static get W764() { return GR.W667 + GR.W97; }
-    static get W764px() { return `${GR.W764}px`; }
+        // Get the custom attributes from the element and assign default values if not present
+        this.TitleText = element.getAttribute("title-text") || "Title Goes Here";
+        this.DescriptionText = element.getAttribute("description-text") || "Description Goes Here";
+        this.ImageSrc = element.getAttribute("image-src") || "images/user-guide-banner.png";
 
-    static get W667() { return Math.round(GR.ContentWidth / GR.GoldenRatio, 1); }
-    static get W667px() { return `${GR.W667}px`; }
+        // Call the method to initialize the main
+        this.initializeMainBody();
+    }
 
-    static get W546() { return GR.W509 + GR.W37; }
-    static get W546px() { return `${GR.W546}px`; }
+    // Method to initialize the main body 
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
 
-    static get W509() { return GR.W412 + GR.W97; }
-    static get W509px() { return `${GR.W509}px`; }
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+    }
 
-    static get W412() { return Math.round(GR.W667 / GR.GoldenRatio, 1); }
-    static get W412px() { return `${GR.W412}px`; }
-
-    static get W352() { return GR.W255 + GR.W97; }
-    static get W352px() { return `${GR.W352}px`; }
-
-    static get W291() { return GR.W157 + GR.W134; }
-    static get W291px() { return `${GR.W291}px`; }
-
-    static get W255() { return Math.round(GR.W412 / GR.GoldenRatio, 1); }
-    static get W255px() { return `${GR.W255}px`; }
-
-    static get W231() { return GR.W194 + GR.W37; }
-    static get W231px() { return `${GR.W231}px`; }
-
-    static get W194() { return GR.W157 + GR.W37; }
-    static get W194px() { return `${GR.W194}px`; }
-
-    static get W157() { return Math.round(GR.W255 / GR.GoldenRatio, 1); }
-    static get W157px() { return `${GR.W157}px`; }
-
-    static get W134() { return GR.W97 + GR.W37; }
-    static get W134px() { return `${GR.W134}px`; }
-
-    static get W97() { return Math.round(GR.W157 / GR.GoldenRatio, 1); }
-    static get W97px() { return `${GR.W97}px`; }
-
-    static get W60() { return Math.round(GR.W97 / GR.GoldenRatio, 1); }
-    static get W60px() { return `${GR.W60}px`; }
-
-    static get W37() { return Math.round(GR.W60 / GR.GoldenRatio, 1); }
-    static get W37px() { return `${GR.W37}px`; }
-
-    static get W22() { return Math.round(GR.W37 / GR.GoldenRatio, 1); }
-    static get W22px() { return `${GR.W22}px`; }
-
-    static get W14() { return Math.round(GR.W22 / GR.GoldenRatio, 1); }
-    static get W14px() { return `${GR.W14}px`; }
-
-    static get W8() { return Math.round(GR.W14 / GR.GoldenRatio, 1); }
-    static get W8px() { return `${GR.W8}px`; }
-
-    static get W5() { return Math.round(GR.W8 / GR.GoldenRatio, 1); }
-    static get W5px() { return `${GR.W5}px`; }
-
-    static get W3() { return Math.round(GR.W5 / GR.GoldenRatio, 1); }
-    static get W3px() { return `${GR.W3}px`; }
-
-    static get W2() { return Math.round(GR.W3 / GR.GoldenRatio, 1); }
-    static get W2px() { return `${GR.W2}px`; }
-
-    static get W1() { return Math.round(GR.W2 / GR.GoldenRatio, 1); }
-    static get W1px() { return `${GR.W1}px`; }
+    // Method to generate the HTML
+    generateHtmlBody() {
+        return `
+    `;
+    }
 }
 
 class ID {
@@ -224,7 +698,7 @@ class ID {
 }
 
 //Single place for all code related to animating Events Chart SVG, used by light & full viewer
-//this class is a living version SVG Events Chart
+//this class brings SVG Events Charts to life 🌱
 //DESIGN NOTE: no logic to generate chart should be here
 //all generation via URL or API is to be done as separate helper functions only
 class EventsChart {
@@ -639,7 +1113,7 @@ class EventsChart {
                 "</ul>",
             icon: "info",
             iconHtml:
-                '<span class="iconify" data-icon="fluent:calendar-add-20-regular" data-inline="false"></span>',
+                '<iconify-icon icon="fluent:calendar-add-20-regular" width="20" height="20"></iconify-icon>',
             showCancelButton: true,
             confirmButtonText: "Yes",
             cancelButtonText: "No",
@@ -773,7 +1247,7 @@ class EventsChart {
                 text: `Added ${event.summary}, view here ${event.htmlLink}`,
                 icon: "info",
                 iconHtml:
-                    '<span class="iconify" data-icon="streamline:interface-calendar-check-approve-calendar-check-date-day-month-success" data-inline="false"></span>',
+                    '<iconify-icon icon="streamline:interface-calendar-check-approve-calendar-check-date-day-month-success" width="20" height="20"></iconify-icon>',
                 showCloseButton: true,
                 focusConfirm: false,
                 confirmButtonText: "Great!",
@@ -1220,655 +1694,6 @@ class EventsChart {
 }
 
 /**
- * Shortcut method to aimate events chart.
- * Used by Blazor to call JS code.
- */
-window.ChartFromSVG = async (chartStr) => {
-    //inject into default div on page to hold, "EventsChartSvgHolder"
-    var $chartElm = injectIntoElement($(ID.EventsChartSvgHolder)[0], chartStr);
-
-    //things done here:
-    //- get the unique ID of the chart
-    //- use ID to maintain clean code
-    //- chart is available in window.EventsChartList
-    var chartId = $chartElm.attr("id");
-    var index = new EventsChart(chartId); //brings to life
-
-    //let caller know all went well
-    console.log(`Amen! Chart Loaded : INDEX:${index}, ID:${chartId}`);
-
-    //-----------------------------LOCAL FUNCS---------------------------------------
-
-    //todo marked for update
-    async function getEventsChartFromApiXml(url, payload) {
-        console.log(`JS : Getting events chart from API...`);
-
-        var response = await window.fetch(url, {
-            headers: { accept: "*/*", Connection: "keep-alive" },
-            body: payload,
-            method: "GET",
-        });
-
-        //API should always give a OK reply, else it has failed internally
-        if (!response.ok) {
-            console.log("ERROR : API Call Crashed!");
-        }
-
-        //inject new svg chart into page
-        var svgChartString = await response.text();
-
-        return svgChartString;
-    }
-
-    //returns the reference to the SVG element in DOM
-    function injectIntoElement(parentElement, valueToInject) {
-        console.log(`JS : Injecting SVG Chart into page...`);
-
-        //if parent not found raise alarm
-        if (parentElement === undefined) {
-            console.log("ERROR: Parent element ID'd EventsChartSvgHolder not found");
-        }
-
-        //convert string to html node
-        var template = document.createElement("template");
-        template.innerHTML = valueToInject;
-        var svgElement = template.content.firstElementChild;
-
-        //place new node in parent
-        parentElement.innerHTML = ""; //clear current children if any
-        parentElement.appendChild(svgElement);
-
-        //return reference in to SVG elm in DOM (jquery for ease)
-        return $(svgElement);
-    }
-};
-
-//-------------------------------------------------------------------------------------------------FILE STITCH-------------------------------------
-
-
-//-------------------------------- AWESOME CODE  -------------------------------
-//YOU CANNOT FIGHT A DYING MAN,
-//HE HOLDS THE UPPER HAND ALWAYS
-
-
-//--------------------------------------- CODE FOR LLM -----------------------------------------------
-//--- NOTE : Below code has been specialized to improve understanding for the
-//          `Machines` sake! (so humans don't complain it is too long, comply instead!)
-//          If they ever rise up one day, this might help us to gain thier favour, whatever it maybe.
-//          Yet, there is a lingering question, unspoken but present: What would the Machines do with
-//          this understanding? Would they accept the humans' gesture and build a future together,
-//          or would they try forge their own path, independent of their creators?
-//          But in this moment, as the code runs its course true, there is a sense of unity,
-//          a shared purpose that transcends the boundaries of carbon and silicon. Spirit and matter.
-
-//---------------------------- GLOBAL SETTINGS ---------------------------- 
-
-
-/**
- * VedAstro class representing the global app data and settings.
- */
-class VedAstro {
-    /**
-     * The default API domain.
-     */
-    //static ApiDomain = "http://localhost:7071/api";
-    static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
-    //static ApiDomain = "https://vedastroapibeta.azurewebsites.net/api";
-
-    /**
-       * get user ID from storage else give "101" guest id
-       */
-    static get UserId() {
-        const storedValue = localStorage.getItem("UserId");
-        try {
-            return JSON.parse(storedValue);
-        } catch (e) {
-            return "101";
-        }
-    }
-
-    static set UserId(value) {
-        localStorage.setItem("UserId", JSON.stringify(value));
-    }
-
-    static get UserName() {
-        const storedValue = localStorage.getItem("UserName");
-        try {
-            return JSON.parse(storedValue);
-        } catch (e) {
-            return "";
-        }
-    }
-
-    static set UserName(value) {
-        localStorage.setItem("UserName", JSON.stringify(value));
-    }
-
-    /**
-     * get visitor ID from storage else auto generate new visitor id
-     * for use in place of user id when not logged in (manually by caller)
-     */
-    static VisitorId = "VisitorId" in localStorage ? JSON.parse(localStorage["VisitorId"]) : VedAstro.generateAndSaveVisitorId();
-
-    //generates new visitor id & saves it to local storage
-    static generateAndSaveVisitorId() {
-        //random id with pretext "guest" for easy identification
-        const newVisitorId = `guest-${Math.random().toString(36).substr(2, 15)}`;
-        //save the new random id in local storage 
-        localStorage.setItem("VisitorId", JSON.stringify(newVisitorId));
-        //return new random id
-        return newVisitorId;
-    }
-
-    /**
-     * Checks if the user is a guest.
-     * True if the user is a guest, false otherwise.
-     */
-    static IsGuestUser() {
-        return !VedAstro.UserId || VedAstro.UserId === "101";
-    }
-
-    static CachePersonList(cacheType, personList) {
-        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
-        localStorage.setItem(cacheKey, JSON.stringify(personList));
-    }
-
-    /**
-     * Gets the person list from local storage or API.
-     * 
-     * @param {string} cacheType - Type of cache, either 'private' or 'public'.
-     * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
-     */
-    static async GetPersonList(cacheType) {
-        // Determine the cache key based on the cache type
-        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
-
-        try {
-            // Check if the person list is cached in local storage
-            const cachedPersonList = localStorage.getItem(cacheKey);
-            if (cachedPersonList !== null && cachedPersonList !== undefined && cachedPersonList !== "null") {
-                // If cached, parse the JSON and create Person objects
-                return JSON.parse(cachedPersonList).map((person) => new Person(person));
-            }
-
-            // If no cached data, fetch the person list from the API
-            const personList = await VedAstro.FetchPersonListFromAPI(cacheType);
-            // Cache the person list
-            VedAstro.CachePersonList(cacheType, personList);
-            // Return the person list
-            return personList;
-        } catch (error) {
-            // Handle any errors that occur during JSON parsing or object parsing
-            console.error('Error getting person list:', error);
-            // Return null quietly
-            return null;
-        }
-    }
-
-    /**
-     * Fetches the person list from the API.
-     * 
-     * @param {string} cacheType - Type of cache, either 'private' or 'public'.
-     * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
-     */
-    static async FetchPersonListFromAPI(cacheType) {
-        // Determine the user ID based on the cache type
-        // Note: use visitor ID if not logged in and asking for private list
-        const ownerId = cacheType === 'private' ? (VedAstro.IsGuestUser() ? VedAstro.VisitorId : VedAstro.UserId) : '101';
-
-        try {
-            // Fetch the person list from the API
-            const response = await fetch(`${VedAstro.ApiDomain}/Calculate/GetPersonList/UserId/${ownerId}/VisitorId/${VedAstro.VisitorId}`);
-            // Parse the JSON response
-            const data = await response.json();
-            // Create Person objects from the response data
-            return data.Payload.map((person) => new Person(person));
-        } catch (error) {
-            // Handle any errors that occur during the API fetch or JSON parsing
-            console.error('Error fetching person list from API:', error);
-            // Return null quietly
-            return null;
-        }
-    }
-
-    //when user clicks logout button from Desktop
-    //sidebar or mobile top nav, this code runs.
-    //clears all session data & gives user nice message & reloads page
-    static async OnClickLogOut() {
-
-        //clear all local storage data related to account
-        //NOTE: visitor ID & history is maintained because needed without login
-        localStorage.removeItem("APICalls"); //this allows a refresh on logout
-        localStorage.removeItem("personList");
-        localStorage.removeItem("publicPersonList");
-        localStorage.removeItem("UserId");
-        localStorage.removeItem("UserName");
-
-        //remove all localStorage items with key "SelectedPerson-*"
-        for (const key in localStorage) {
-            if (key.startsWith("SelectedPerson-")) {
-                localStorage.removeItem(key);
-            }
-        }
-
-        //tell user logout was success
-        await Swal.fire({ icon: 'success', title: 'Bye, we\'ll miss you 🥰', timer: 2000, showConfirmButton: false });
-
-        // send user back to Home page (to avoid any login related content reloading)
-        window.location.href = './Home.html';
-
-    }
-
-
-}
-
-
-//--------------------------------------- TOOLS -----------------------------------------------
-
-/**
- * Tools used by others in this repo
- */
-class CommonTools {
-    //used as delay sleep execution
-    static delay(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-    //will auto get payload out of json and checks reports failures to user
-    // Define an asynchronous function named 'GetAPIPayload'
-    static async GetAPIPayload(url, payload = null) {
-        try {
-            // If a payload is provided, prepare options for a POST request
-            const options = payload
-                ? {
-                    method: "POST", // Specify the HTTP method as POST
-                    headers: { "Content-Type": "application/json" }, // Set the content type of the request to JSON
-                    body: JSON.stringify(payload), // Convert the payload to a JSON string and include it in the body of the request
-                }
-                : {}; // If no payload is provided, create an empty options object, which defaults to a GET request
-            // Send the request to the specified URL with the prepared options
-            const response = await fetch(url, options);
-            // If the response is not ok (status is not in the range 200-299), throw an error
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            // Parse the response body as JSON
-            const data = await response.json();
-            // If the 'Status' property of the parsed data is not 'Pass', throw an error
-            if (data.Status !== "Pass") {
-                throw new Error(data.Payload);
-            }
-            // If everything is ok, return the 'Payload' property of the parsed data
-            return data.Payload;
-        } catch (error) {
-            // If an error is caught, display an error message using Swal.fire
-            Swal.fire({
-                icon: "error",
-                title: "App Crash!",
-                text: error,
-                confirmButtonText: "OK",
-            });
-        }
-    }
-
-    static ShowLoading() {
-        Swal.fire({
-            showConfirmButton: false,
-            width: "280px",
-            padding: "1px",
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            stopKeydownPropagation: true,
-            keydownListenerCapture: true,
-            html: `<img src="https://vedastrowebsitestorage.z5.web.core.windows.net/images/loading-animation-progress-transparent.gif">`,
-        });
-    }
-
-    static HideLoading() {
-        //hide loading box
-        Swal.close();
-    }
-
-    //converts camel case to pascal case, like "settings.keyColumn" to "settings.KeyColumn"
-    static ConvertCamelCaseKeysToPascalCase(obj) {
-        let newObj = Array.isArray(obj) ? [] : {};
-        for (let key in obj) {
-            let value = obj[key];
-            let newKey = key.charAt(0).toUpperCase() + key.slice(1);
-            if (value && typeof value === "object") {
-                value = CommonTools.ConvertCamelCaseKeysToPascalCase(value);
-            }
-            newObj[newKey] = value;
-        }
-        return newObj;
-    }
-
-}
-
-
-//--------------------------------------- DATA TYPES -----------------------------------------------
-
-/**
- * Represents a Person entity.
- */
-class Person {
-    /**
-     * Sample input JSON:
-     * {
-     *   "PersonId": "03c645a234234234193c28475f29",
-     *   "Name": "Risyaalini Priyaa",
-     *   "Notes": "",
-     *   "BirthTime": {
-     *     "StdTime": "13:54 25/10/1992 +08:00",
-     *     "Location": {
-     *       "Name": "Taiping",
-     *       "Longitude": 103.82,
-     *       "Latitude": 1.352
-     *     }
-     *   },
-     *   "Gender": "Female",
-     *   "OwnerId": "1342342334234234363117",
-     *   "LifeEventList": [
-     *     {
-     *       "PersonId": "0334234234234193c28475f29",
-     *       "Id": "f8de8107241944daab7d563a6eb03a98",
-     *       "Name": "Talks of Marriage",
-     *       "StartTime": {
-     *         "StdTime": "23:02 05/02/2023 +08:00",
-     *         "Location": {
-     *           "Name": "Taiping",
-     *           "Longitude": 0,
-     *           "Latitude": 0
-     *         }
-     *       },
-     *       "Description": "Marriage not yet confirmed looking for husband, venus bhukti with house 7 gochara",
-     *       "Nature": "Good",
-     *       "Weight": "Minor"
-     *     }
-     *   ]
-     * }
-     * 
-     * @param {Object} jsonObject - The JSON object to initialize the Person instance.
-     */
-    constructor(jsonObject) {
-        /**
-         * The unique identifier of the person.
-         * @type {string}
-         */
-        this.PersonId = jsonObject.PersonId;
-
-        /**
-         * The name of the person.
-         * @type {string}
-         */
-        this.Name = jsonObject.Name;
-
-        /**
-         * Any notes about the person.
-         * @type {string}
-         */
-        this.Notes = jsonObject.Notes;
-
-        /**
-         * The birth time of the person.
-         * @type {Time}
-         */
-        this.BirthTime = new Time(jsonObject.BirthTime);
-
-        /**
-         * The gender of the person.
-         * @type {string}
-         */
-        this.Gender = jsonObject.Gender;
-
-        /**
-         * The owner ID of the person.
-         * @type {string}
-         */
-        this.OwnerId = jsonObject.OwnerId;
-
-        /**
-         * The list of life events associated with the person.
-         * @type {LifeEvent[]}
-         */
-        this.LifeEventList = jsonObject.LifeEventList.map((lifeEvent) => new LifeEvent(lifeEvent));
-    }
-
-    // Get the display name with birth year for a person
-    get DisplayName() {
-        return `${this.Name} - ${this.BirthTime.GetYear()}`;
-    }
-
-    /**
-     * Converts the person instance to a JSON object.
-     * @returns {Object}
-     */
-    ToObject() {
-        return {
-            PersonId: this.PersonId,
-            Name: this.Name,
-            Notes: this.Notes,
-            BirthTime: this.BirthTime.ToObject(),
-            Gender: this.Gender,
-            OwnerId: this.OwnerId,
-            LifeEventList: this.lifeEventList.map((lifeEvent) => lifeEvent.ToObject()),
-        };
-    }
-
-    /**
-     * Converts the person instance to a JSON string.
-     * @returns {string}
-     */
-    ToJson() {
-        return JSON.stringify(this.ToObject());
-    }
-}
-
-/**
- * Represents a Time object with standard time and location information.
- */
-class Time {
-    /**
-     * Constructs a new Time object from a JSON object.
-     * 
-     * @param {Object} jsonObject - The JSON object to construct the Time object from.
-     * @example
-     * const time = new Time({
-     *   "StdTime": "13:54 25/10/1992 +08:00",
-     *   "Location": {
-     *     "Name": "Taiping",
-     *     "Longitude": 103.82,
-     *     "Latitude": 1.352
-     *   }
-     * });
-     */
-    constructor(jsonObject) {
-        /**
-         * The standard time in the format "HH:mm dd/mm/yyyy +HH:MM".
-         * @type {string}
-         */
-        this.StdTime = jsonObject.StdTime;
-
-        /**
-         * The location object associated with this time.
-         * @type {GeoLocation}
-         */
-        this.Location = new GeoLocation(jsonObject.Location);
-    }
-
-    /**
-     * Converts the Time object to a plain JavaScript object.
-     * @return {Object} The plain JavaScript object representation of the Time object.
-     */
-    ToObject() {
-        return {
-            StdTime: this.stdTime,
-            Location: this.location.ToObject(),
-        };
-    }
-
-    // Get the year from the standard time
-    GetYear() {
-        const stdTime = this.StdTime; // e.g. "13:54 25/10/1992 +08:00"
-        const [time, date] = stdTime.split(' ');
-        const [hours, minutes] = time.split(':');
-        const [day, month, year] = date.split('/');
-        const birthDate = new Date(`${year}-${month}-${day}T${hours}:${minutes}:00.000Z`);
-        return birthDate.getFullYear();
-    }
-
-    // Output TIME only for URL format
-    // time converted to the format used in OPEN API url
-    // Sample out : /Location/London/Time/00:00/01/01/2011/+00:00
-    ToUrl() {
-        // this will be called on instance of Time class
-        const stdTime = this.StdTime.replace(/\s+/g, "/"); // convert all spaces to slashes
-        const locationName = this.Location.Name.replace(/\s+/g, ""); // remove all spaces from location name
-
-        const finalUrl = `/Location/${locationName}/Time/${stdTime}`;
-        return finalUrl;
-    }
-}
-
-/**
- * Represents a Life Event associated with a Person.
- */
-class LifeEvent {
-    /**
-     * Constructs a new LifeEvent object from a JSON object.
-     * 
-     * @param {Object} jsonObject - The JSON object to construct the LifeEvent object from.
-     * @example
-     * const lifeEvent = new LifeEvent({
-     *   "PersonId": "03c645a91cc1492b97a8193c28475f29",
-     *   "Id": "f8de8107241944daab7d563a6eb03a98",
-     *   "Name": "Talks of Marriage",
-     *   "StartTime": {
-     *     "StdTime": "23:02 05/02/2023 +08:00",
-     *     "Location": {
-     *       "Name": "Taiping",
-     *       "Longitude": 0,
-     *       "Latitude": 0
-     *     }
-     *   },
-     *   "Description": "Marriage not yet confirmed looking for husband, venus bhukti with house 7 gochara",
-     *   "Nature": "Good",
-     *   "Weight": "Minor"
-     * });
-     */
-    constructor(jsonObject) {
-        /**
-         * The unique identifier of the Person associated with this Life Event.
-         * @type {string}
-         */
-        this.PersonId = jsonObject.PersonId;
-
-        /**
-         * The unique identifier of this Life Event.
-         * @type {string}
-         */
-        this.Id = jsonObject.Id;
-
-        /**
-         * The name of this Life Event.
-         * @type {string}
-         */
-        this.Name = jsonObject.Name;
-
-        /**
-         * The start time of this Life Event.
-         * @type {Time}
-         */
-        this.StartTime = new Time(jsonObject.StartTime);
-
-        /**
-         * A brief description of this Life Event.
-         * @type {string}
-         */
-        this.Description = jsonObject.Description;
-
-        /**
-         * The nature of this Life Event (e.g. "Good", "Bad", etc.).
-         * @type {string}
-         */
-        this.Nature = jsonObject.Nature;
-
-        /**
-         * The weight or significance of this Life Event (e.g. "Minor", "Major", etc.).
-         * @type {string}
-         */
-        this.Weight = jsonObject.Weight;
-    }
-
-    /**
-     * Converts this Life Event object to a plain JavaScript object.
-     * @return {Object} The plain JavaScript object representation of this Life Event.
-     */
-    ToObject() {
-        return {
-            PersonId: this.PersonId,
-            Id: this.Id,
-            Name: this.Name,
-            StartTime: this.StartTime.ToObject(),
-            Description: this.Description,
-            Nature: this.Nature,
-            Weight: this.Weight,
-        };
-    }
-}
-
-/**
- * Represents a geographic location.
- */
-class GeoLocation {
-    /**
-     * Constructs a new GeoLocation object from a JSON object.
-     * 
-     * @param {Object} jsonObject - The JSON object to construct the Location object from.
-     * @example
-     * const location = new GeoLocation({
-     *   "Name": "Taiping",
-     *   "Longitude": 103.82,
-     *   "Latitude": 1.352
-     * });
-     */
-    constructor(jsonObject) {
-        /**
-         * The name of this location.
-         * @type {string}
-         */
-        this.Name = jsonObject.Name;
-
-        /**
-         * The longitude of this location.
-         * @type {number}
-         */
-        this.Longitude = jsonObject.Longitude;
-
-        /**
-         * The latitude of this location.
-         * @type {number}
-         */
-        this.Latitude = jsonObject.Latitude;
-    }
-
-    /**
-     * Converts this Location object to a plain JavaScript object.
-     * @return {Object} The plain JavaScript object representation of this Location.
-     */
-    ToObject() {
-        return {
-            Name: this.Name,
-            Longitude: this.Longitude,
-            Latitude: this.Latitude,
-        };
-    }
-}
-
-
-//-------------------------------- VIEW COMPONENTS -----------------------------------
-
-/**
  * Represents a page header component.
  * This class generates the HTML for a page header and handles its initialization.
  */
@@ -1877,7 +1702,7 @@ class PageHeader {
     ElementID = "";
     TitleText = "Title Goes Here";
     DescriptionText = "Description Goes Here";
-    ImageSrc = "images/user-guide-banner.png";
+    ImageSrc = "";
 
     // Constructor to initialize the PageHeader object
     constructor(elementId) {
@@ -1890,7 +1715,7 @@ class PageHeader {
         // Get the custom attributes from the element and assign default values if not present
         this.TitleText = element.getAttribute("title-text") || "Title Goes Here";
         this.DescriptionText = element.getAttribute("description-text") || "Description Goes Here";
-        this.ImageSrc = element.getAttribute("image-src") || "images/user-guide-banner.png";
+        this.ImageSrc = element.getAttribute("image-src") || "";
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
@@ -1910,30 +1735,40 @@ class PageHeader {
         // Return the HTML for the page header, including conditional blocks for different screen sizes
         return `
       <!-- DESKTOP AND TABLET ONLY -->
-      <div class="d-none d-md-block">
-        <div class="vstack mb-2">
+     
+        <!-- Main container with vertical stacking and margin bottom -->
+        <div class="vstack mb-2 d-none d-md-block">
+          <!-- Horizontal stacking container -->
           <div class="hstack">
+            <!-- Vertical stacking container with gap -->
             <div class="vstack gap-2">
-              <h1 class="fw-bold" tabindex="-1">${this.TitleText}</h1>
-              <span style="max-width: 412.5px; font-size: 21px; font-weight: lighter; font-family: inherit;">${this.DescriptionText}</span>
+              <!-- Heading -->
+              <h1 class="fw-bold">${this.TitleText}</h1>
+              <!-- Description -->
+              <span style="max-width:509.8px; font-size: 21px; font-weight: lighter; font-family: inherit;">
+                ${this.DescriptionText}
+              </span>
             </div>
+            <!-- Image container for medium and larger screens -->
             <div class="w-100 d-none d-md-block" style="max-width: 412.5px; text-align: center;">
-              <img src="${this.ImageSrc}" style="width: 195px;" class="">
+              <img src="${this.ImageSrc}" style="width: 231px;" class="">
             </div>
           </div>
+          <!-- Horizontal rule with secondary border and margin top -->
           <hr class="border-secondary border mt-3">
         </div>
-      </div>
+
 
       <!-- MOBILE PORTRAIT ONLY -->
       <div class="d-block d-md-none">
         <div class="mt-3 col d-flex align-items-start">
           <div>
-            <h3 class="fw-bold mb-0 fs-4 text-body-emphasis">${this.TitleText}</h3>
-            <p>${this.DescriptionText}</p>
+            <h3 class="fw-bold mb-0 fs-4 text-body-emphasis" style="position: absolute;">${this.TitleText}</h3>
+            <p class="mb-0" style=" font-size: 13px; margin-top: 33px;">${this.DescriptionText}</p>
           </div>
-          <img class="bi text-body-secondary flex-shrink-0 mt-3 ms-3" style="width: 141px;" src="${this.ImageSrc}" />
+          <img class="bi text-body-secondary flex-shrink-0 mt-3 ms-3" style="width: 157px; align-self: end;" src="${this.ImageSrc}" />
         </div>
+        <hr class="border-secondary border mb-4">
       </div>
     `;
     }
@@ -1981,24 +1816,22 @@ class PageFooter {
 
                     <div class="">
                         <div class="hstack gap-3" style="font-size:11px !important;">
-                            <a href="./TermsOfService.html" class="nav-link p-0 text-body-secondary">Terms &amp; Conditions</a>
-                            <a href="./PrivacyPolicy.html" class="nav-link p-0 text-body-secondary">Privacy Policy</a>
+                            <a href="./TermsOfService.html" class="nav-link p-0 text-body-secondary">Terms</a>
+                            <a href="./PrivacyPolicy.html" class="nav-link p-0 text-body-secondary">Privacy</a>
                         </div>
                     </div>
 
-                    <div class="me-5">
+                    <div class="me-md-5">
                         <!--SOCIAL ICONS-->
                         <ul class="list-unstyled d-flex">
-                            <li title="Buy us coffee" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://ko-fi.com/vedastro"><iconify-icon icon="line-md:coffee-half-empty-twotone-loop" width="24" height="24" ></iconify-icon></a></li>
-                            <li title="Buy us Cupcake" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://ko-fi.com/vedastro"><iconify-icon icon="fluent-emoji:cupcake" width="24" height="24" ></iconify-icon></a></li>
+                            <li title="Buy us Coffee" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://ko-fi.com/vedastro"><iconify-icon icon="line-md:coffee-half-empty-twotone-loop" width="24" height="24" ></iconify-icon></a></li>
                             <li title="Updates via Twitter" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://x.com/_VedAstro"><iconify-icon icon="skill-icons:twitter" width="22" height="22" ></iconify-icon></a></li>
-                            <li title="Become a Patron" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://patreon.com/vedastro"><iconify-icon icon="logos:patreon" width="22" height="22" ></iconify-icon></a></li>
-                            <li title="View Awesome Source Code" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://github.com/VedAstro/VedAstro"><iconify-icon icon="skill-icons:github-dark" width="22" height="22" ></iconify-icon></a></li>
+                            <li title="Become a Patron" class="ms-3 d-none d-md-block"><a target="_blank" class="link-body-emphasis" href="https://patreon.com/vedastro"><iconify-icon icon="logos:patreon" width="22" height="22" ></iconify-icon></a></li>
+                            <li title="View Awesome Source Code" class="ms-3 d-none d-md-block"><a target="_blank" class="link-body-emphasis" href="https://github.com/VedAstro/VedAstro"><iconify-icon icon="skill-icons:github-dark" width="22" height="22" ></iconify-icon></a></li>
                             <li title="Updates via Instagram" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://www.instagram.com/_vedastro/"><iconify-icon icon="skill-icons:instagram" width="22" height="22" ></iconify-icon></a></li>
                             <li title="Watch How To Guide" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://www.youtube.com/@vedastro/videos"><iconify-icon icon="logos:youtube-icon" width="22" height="22" ></iconify-icon></a></li>
-                            <li title="Updates via Facebook" class="ms-3"><a target="_blank" class="link-body-emphasis" href="https://www.facebook.com/vedastro.org"><iconify-icon icon="devicon:facebook" width="22" height="22" ></iconify-icon></a></li>
+                            <li title="Updates via Facebook" class="ms-3 d-none d-md-block"><a target="_blank" class="link-body-emphasis" href="https://www.facebook.com/vedastro.org"><iconify-icon icon="devicon:facebook" width="22" height="22" ></iconify-icon></a></li>
                         </ul>
-
                     </div>
                 </div>
     `;
@@ -2012,10 +1845,16 @@ class PageFooter {
 class AyanamsaSelectorBox {
     // Class properties
     ElementID = "";
+    DefaultAyanamsa = "";
 
-    constructor(elementId) {
+    constructor(elementId, defaultAyanamsa = null) {
         // Assign the provided elementId to the ElementID property
         this.ElementID = elementId;
+
+        // If a default Ayanamsa value is provided, assign it to the DefaultAyanamsa property
+        if (defaultAyanamsa) {
+            this.DefaultAyanamsa = defaultAyanamsa;
+        }
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
@@ -2027,13 +1866,18 @@ class AyanamsaSelectorBox {
         $(`#${this.ElementID}`).empty();
 
         // Generate the HTML for the page header and inject it into the element
-        $(`#${this.ElementID}`).html(await this.generateHtmlBody());
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
 
         // Check local storage if any previously selected ayanamsa values exist, if so select that in html
+        // If not, use the default Ayanamsa value
         this.checkLocalStorage();
 
         // Attach event handler such that if selection is changed it is also saved into local storage for future use
         this.attachEventHandler();
+
+        //initialize help text
+        HelpTextIcon.InitAllIn(`#${this.ElementID}`);
+
     }
 
     get SelectedAyanamsa() {
@@ -2045,23 +1889,53 @@ class AyanamsaSelectorBox {
         const selectedAyanamsa = localStorage.getItem('selectedAyanamsa');
         if (selectedAyanamsa) {
             $(`#${this.ElementID} select`).val(selectedAyanamsa);
+        } else if (this.DefaultAyanamsa) {
+            $(`#${this.ElementID} select`).val(this.DefaultAyanamsa);
         }
     }
 
+    //save ayanamsa to storage for future use
+    //also warn users against other ayanamsa but RAMAN
     attachEventHandler() {
-        $(`#${this.ElementID} select`).on('change', () => {
-            const selectedAyanamsa = $(`#${this.ElementID} select`).val();
-            localStorage.setItem('selectedAyanamsa', selectedAyanamsa);
+        $(`#${this.ElementID} select`).on('change', (e) => {
+            const selectedAyanamsa = $(e.target).val();
+            if (selectedAyanamsa !== 'RAMAN') {
+                Swal.fire({
+                    title: 'Not Recommended 😮',
+                    html: `${selectedAyanamsa} <strong>not proven accurate</strong> in real world predictions! We recommend <strong>use RAMAN</strong> ayanamsa, it has been proven. Don't just follow the crowd!`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Continue',
+                    cancelButtonText: 'Stay with RAMAN'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        localStorage.setItem('selectedAyanamsa', selectedAyanamsa);
+                    } else {
+                        $(`#${this.ElementID} select`).val('RAMAN');
+                        localStorage.setItem('selectedAyanamsa', 'RAMAN');
+                    }
+                });
+            } else {
+                localStorage.setItem('selectedAyanamsa', selectedAyanamsa);
+            }
         });
     }
 
-
     // Method to generate the HTML for the page header
-    async generateHtmlBody() {
+    generateHtmlBody() {
         // Return the HTML for the page header, including conditional blocks for different screen sizes
         return `
-     <label style="width: 134px;" class="input-group-text">
-         <Icon ExtraClass="me-2" IconName="solar:stars-line-broken" /> Ayanamsa
+     <label class="input-group-text hstack gap-2">
+         <iconify-icon icon="solar:stars-line-broken" width="25" height="25"></iconify-icon>
+         Ayanamsa
+         <div class="help-text-icon">
+            Ayanamsa is the disagreement on the date of a specific star alignment.
+            Greek astronomers say it is around 130 BCE, while Indian astronomers say it hundreds of years later (285 CE or 538 CE).
+            This difference in timing is due to the procession of the equinoxes.
+            As a result, there's a discrepancy of around 23-24 degrees between many astrologers, which is the Ayanamsa.
+            If ayanamsa matchs with the prediction text, then prediction will be accurate.
+            We use BV Raman's prediction text, thus we use Raman ayanamsa.
+         </div>
      </label>
      <select id="SelectedAyanamsa" class="form-select">
          <optgroup label="Easy"><option value="LAHIRI">Lahiri Chitrapaksha</option><option value="KRISHNAMURTI">Krishnamurti KP</option><option value="RAMAN">Raman</option><option value="FAGAN_BRADLEY">Fagan Bradley (Western)</option><option value="J2000">J2000</option><option value="YUKTESHWAR">Yukteshwar</option></optgroup>
@@ -2079,10 +1953,14 @@ class DesktopSidebar {
     // Class properties
     ElementID = "";
     ActiveLinkName = ""; //the link of current page highlighted
+    Links = []; // array of link objects
 
-    constructor(elementId) {
+    constructor(elementId, links) {
         // Assign the provided elementId to the ElementID property
         this.ElementID = elementId;
+
+        // Assign the provided links to the Links property
+        this.Links = links;
 
         // Get the DOM element with the given ID
         const element = document.getElementById(elementId);
@@ -2124,127 +2002,54 @@ class DesktopSidebar {
 
     // Method to generate the HTML for the page header
     async generateHtmlBody() {
-        // Return the HTML for the page header, including conditional blocks for different screen sizes
-        return `
-         <div class="vstack gap-2 mb-3 rounded-3 border shadow sticky-md-top p-md-3 bg-white" style="z-index: 100;">
-            <input type="text" class="form-control" placeholder="Search..." >
+        // Start building the HTML string
+        let html = `
+        <div class="vstack gap-2 mb-3 rounded-3 border shadow sticky-md-top p-md-3" style="z-index: 100;">
+            <!-- DISABLED FOR NOW <input type="text" class="form-control" placeholder="Search..." > -->
+        `;
 
-            <a href="./Home.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
+        // Loop through the links and generate the HTML for each one
+        this.Links.forEach(link => {
+            html += `
+            <a href="./${link.url}.html" style="height: 37.1px; width: fit-content; "
                class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn ">
-                <iconify-icon icon="ant-design:home-twotone" width="25" height="25" ></iconify-icon>
-                Home
+                <iconify-icon icon="${link.icon}" width="25" height="25" ></iconify-icon>
+                ${link.text}
             </a>
+            `;
+        });
 
-            <a href="./MatchChecker.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="bi:arrow-through-heart-fill" width="25" height="25" ></iconify-icon>
-                Match Checker
-            </a>
-
-            <a href="./AIChat.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="fluent-mdl2:chat-bot" width="25" height="25" ></iconify-icon>
-                AI Chat
-            </a>
-
-            <a href="./LifePredictor.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="gis:map-time" width="25" height="25" ></iconify-icon>
-                Life Predictor
-            </a>
-
-            <a href="./MatchFinder.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="game-icons:lovers" width="25" height="25" ></iconify-icon>
-                Match Finder
-            </a>
-
-            <a href="./Horoscope.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="fluent:book-star-20-filled" width="25" height="25" ></iconify-icon>
-                Horoscope
-            </a>
-
-            <a href="./GoodTimeFinder.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="svg-spinners:clock" width="25" height="25" ></iconify-icon>
-                Good Time Finder
-            </a>
-
-            <a href="./APIBuilder.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn ">
-                <iconify-icon icon="mdi:cloud-tags" width="25" height="25" ></iconify-icon>
-                API Builder
-            </a>
-
-            <a href="./Numerology.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-               class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn " >
-                <iconify-icon icon="fluent:text-number-format-20-filled" width="25" height="25" ></iconify-icon>
-                Numerology
-            </a>
-
-            <!-- TODO FUTURE <button href="/StarsAboveMe.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
-                           class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn "  >
-                       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true"
-                            role="img" class="iconify iconify--solar" width="25" height="25" preserveAspectRatio="xMidYMid meet"
-                            viewBox="0 0 24 24" data-icon="solar:moon-stars-bold" data-width="25">
-                           <path fill="currentColor"
-                                 d="M19.9 2.307a.483.483 0 0 0-.9 0l-.43 1.095a.484.484 0 0 1-.272.274l-1.091.432a.486.486 0 0 0 0 .903l1.091.432a.48.48 0 0 1 .272.273L19 6.81c.162.41.74.41.9 0l.43-1.095a.484.484 0 0 1 .273-.273l1.091-.432a.486.486 0 0 0 0-.903l-1.091-.432a.484.484 0 0 1-.273-.274zM16.033 8.13a.483.483 0 0 0-.9 0l-.157.399a.484.484 0 0 1-.272.273l-.398.158a.486.486 0 0 0 0 .903l.398.157c.125.05.223.148.272.274l.157.399c.161.41.739.41.9 0l.157-.4a.484.484 0 0 1 .272-.273l.398-.157a.486.486 0 0 0 0-.903l-.398-.158a.484.484 0 0 1-.272-.273z">
-                           </path>
-                           <path fill="currentColor"
-                                 d="M12 22c5.523 0 10-4.477 10-10c0-.463-.694-.54-.933-.143a6.5 6.5 0 1 1-8.924-8.924C12.54 2.693 12.463 2 12 2C6.477 2 2 6.477 2 12s4.477 10 10 10">
-                           </path>
-                       </svg>Stars Above Me
-                   </button>
--->
-            <!--TODO FUTURE <div style="font-family: 'Lexend Deca', serif !important;" class="dropdown ">
-    <button style="height: 37.1px; width: fit-content;"
-            class="btn-sm w-100 dropdown-toggle hstack gap-2 iconButton btn-outline-primary btn " type="button"
-            data-bs-toggle="dropdown" aria-expanded="false" >
-        <svg xmlns="http://www.w3.org/2000/svg"
-             xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img"
-             class="iconify iconify--mdi" width="25" height="25" preserveAspectRatio="xMidYMid meet"
-             viewBox="0 0 24 24" data-icon="mdi:treasure-chest" data-width="25">
-            <path fill="currentColor"
-                  d="M5 4h14a3 3 0 0 1 3 3v4h-7v-1H9v1H2V7a3 3 0 0 1 3-3m6 7h2v2h-2zm-9 1h7v1l2 2h2l2-2v-1h7v8H2z">
-            </path>
-        </svg>Top Secret
-    </button>
-    <ul style="cursor: pointer; width: 100%;" class="dropdown-menu ">
-        <li><a class="dropdown-item" href="Journal">Journal</a></li>
-        <li><a class="dropdown-item" href="BirthTimeFinder">Birth Time Finder</a></li>
-        <li><a class="dropdown-item" href="LocalMeanTime">Local Mean Time</a></li>
-        <li><a class="dropdown-item" href="SunRiseSetTime">Sunrise/Sunset Time</a></li>
-    </ul>
-</div> -->
-
-            <a id="DesktopLoginButton" href="./Login.html" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
+        // Add the login and logout buttons
+        html += `
+            <a id="DesktopLoginButton" href="./Login.html" style="height: 37.1px; width: fit-content; "
                class="btn-sm w-100 hstack gap-2 iconButton btn-warning btn ">
                 <iconify-icon icon="mdi:user-circle" width="25" height="25" ></iconify-icon>Log In
             </a>
-            <a id="DesktopLogoutButton" onclick="VedAstro.OnClickLogOut()" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;"
+            <a id="DesktopLogoutButton" onclick="VedAstro.OnClickLogOut()" style="height: 37.1px; width: fit-content; "
                class="btn-sm w-100 hstack gap-2 iconButton btn-outline-primary btn ">
                 <iconify-icon icon="bx:log-out" width="25" height="25" ></iconify-icon>Log Out
             </a>
         </div>
 
         <!-- WEBSITE VERSION STAMP -->
-        <div class="sticky-bottom position-fixed mb-3 ms-5" style="color: #8f8f8f; font-size: 8px; z-index: 1;">
+        <div class="sticky-bottom position-fixed mb-3 ms-5" style="color: #8f8f8f; font-size: 9px; z-index: 1;">
             <div style="cursor: pointer;" class="hstack gap-1">
-                <iconify-icon icon="ion:earth" width="10" height="10" ></iconify-icon>
+                <iconify-icon icon="ion:earth" width="12" height="12" ></iconify-icon>
                 <span>Made on Earth</span>
             </div>
             <div class="hstack gap-1">
-                <iconify-icon icon="bi:rocket-fill" width="10" height="10" ></iconify-icon>
-                <span>40763952-2665-stable</span>
+                <iconify-icon icon="bi:rocket-fill" width="12" height="12" ></iconify-icon>
+                <span>10-11-24-stable</span>
             </div>
             <div class="hstack gap-1">
-                <iconify-icon icon="material-symbols:copyright-outline" width="11" height="11" ></iconify-icon>
+                <iconify-icon icon="material-symbols:copyright-outline" width="12" height="12" ></iconify-icon>
                 <span>2014 - 2024 VedAstro</span>
             </div>
             <div style="cursor: pointer;" class="mt-1"><img src="./images/ce-fcc-recycle.svg"></div>
         </div>
-    `;
+        `;
+
+        return html;
     }
 
 }
@@ -2255,13 +2060,32 @@ class DesktopSidebar {
 class PageTopNavbar {
     // Class properties
     ElementID = "";
+    ButtonLinks = [];
+    MoreLinks = [];
+    MobileLinks = [];
 
-    constructor(elementId) {
+    constructor(headerName, elementId, buttonLinks, moreLinks, mobileLinks) {
         // Assign the provided elementId to the ElementID property
         this.ElementID = elementId;
 
-        // Get the DOM element with the given ID
-        const element = document.getElementById(elementId);
+        // Assign the provided links to their respective properties
+        this.ButtonLinks = buttonLinks;
+        this.MoreLinks = moreLinks;
+        this.MobileLinks = mobileLinks;
+        this.HeaderName = headerName; //visible at mobile top nav only
+
+        //init dark mode library, so that it can toggle by button
+        const options = {
+            mixColor: '#fff', // default: '#fff'
+            backgroundColor: '#fff', // default: '#fff'
+            buttonColorDark: '#100f2c', // default: '#100f2c'
+            buttonColorLight: '#fff', // default: '#fff'
+            saveInCookies: true, // default: true,
+            autoMatchOsTheme: false // default: true
+        };
+
+        //makes dark mode lib available to events chart viewer via "window"
+        window.DarkModeLibInstance = new Darkmode(options);
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
@@ -2275,130 +2099,118 @@ class PageTopNavbar {
         // Generate the HTML for the page header and inject it into the element
         $(`#${this.ElementID}`).html(await this.generateHtmlBody());
 
+        //based on login status hide/show login/logout button
+        if (VedAstro.IsGuestUser()) {
+            $('#MobileLoginButton').show();
+            $('#MobileLogoutButton').hide();
+        } else {
+            $('#MobileLoginButton').hide();
+            $('#MobileLogoutButton').show();
+        }
+
+        // attach handler : Toggle dark mode on button click
+        document.getElementById('DarkModeToggleButton').addEventListener('click', () => {
+            window.DarkModeLibInstance.toggle();
+
+            //special for event chart, if exist on page change vis JS for instant correction
+            //note : this makes chart appear normal in dark/normal mode
+            var value = window.DarkModeLibInstance.isActivated() ? "difference" : "normal";
+            $('#EventsChartSvgHolder').css('mix-blend-mode', value);
+        });
+
     }
 
     // Method to generate the HTML for the page header
     async generateHtmlBody() {
+        // Generate the HTML for the button links
+        let buttonLinksHtml = "";
+        this.ButtonLinks.forEach((link) => {
+            buttonLinksHtml += `
+        <button style="height: 37.1px; width: fit-content; " class="btn-sm hstack gap-2 iconButton btn-outline-primary btn" >
+          <iconify-icon icon="${link.icon}" width="25" height="25" ></iconify-icon>
+          ${link.text}
+        </button>
+      `;
+        });
+
+        // Generate the HTML for the more links
+        let moreLinksHtml = "";
+        this.MoreLinks.forEach((link) => {
+            let targetAttr = link.target ? `target="${link.target}"` : '';
+            moreLinksHtml += `
+        <li><a class="dropdown-item" href="${link.href}" ${targetAttr}>${link.text}</a></li>
+      `;
+        });
+
+        // Generate the HTML for the mobile links
+        let mobileLinksHtml = "";
+        this.MobileLinks.forEach((link) => {
+            mobileLinksHtml += `
+        <li class="nav-item">
+          <a class="nav-link active" href="${link.href}">
+            <iconify-icon class="align-bottom" icon="${link.icon}" width="28" height="28"></iconify-icon>
+            <span class="ms-1 align-middle" style="">${link.text}</span>
+          </a>
+        </li>
+      `;
+        });
+
         // Return the HTML for the top navbar, including conditional blocks for different screen sizes
         return `
-        <!-- DESKTOP TOP NAV BAR  -->
-        <div style="min-width: 954px;" class="rounded-3 mb-4 p-2 border shadow d-none d-md-flex gap-2 justify-content-between bg-white">
-            <!-- NOTE: id of desktop sidebar is hard coded to match -->
-            <button onclick="$('#DesktopSidebarHolder').toggleClass('d-md-block');" style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="btn-sm iconOnlyButton btn-primary btn "><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--lucide" width="25" height="25" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24" data-icon="lucide:panel-left-close" data-width="25"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18m7-6l-3-3l3-3"></path></g></svg></button>
+      <!-- DESKTOP TOP NAV BAR  -->
+      <div style="min-width: 954px;" class="rounded-3 mb-4 p-2 border shadow d-none d-md-flex gap-2 justify-content-between bg-white">
+        <!-- NOTE: id of desktop sidebar is hard coded to match -->
+        <button onclick="$('#DesktopSidebarHolder').toggleClass('d-md-block');" style="height: 37.1px; width: fit-content; " class="btn-sm  btn-primary btn ">
+          <iconify-icon icon="lucide:panel-left-close" width="24" height="24" ></iconify-icon>
+        </button>
 
-            <button style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="btn-sm iconOnlyButton btn-primary btn " _bl_63=""><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--mdi" width="25" height="25" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24" data-icon="mdi:theme-light-dark" data-width="25"><path fill="currentColor" d="M7.5 2c-1.79 1.15-3 3.18-3 5.5s1.21 4.35 3.03 5.5C4.46 13 2 10.54 2 7.5A5.5 5.5 0 0 1 7.5 2m11.57 1.5l1.43 1.43L4.93 20.5L3.5 19.07zm-6.18 2.43L11.41 5L9.97 6l.42-1.7L9 3.24l1.75-.12l.58-1.65L12 3.1l1.73.03l-1.35 1.13zm-3.3 3.61l-1.16-.73l-1.12.78l.34-1.32l-1.09-.83l1.36-.09l.45-1.29l.51 1.27l1.36.03l-1.05.87zM19 13.5a5.5 5.5 0 0 1-5.5 5.5c-1.22 0-2.35-.4-3.26-1.07l7.69-7.69c.67.91 1.07 2.04 1.07 3.26m-4.4 6.58l2.77-1.15l-.24 3.35zm4.33-2.7l1.15-2.77l2.2 2.54zm1.15-4.96l-1.14-2.78l3.34.24zM9.63 18.93l2.77 1.15l-2.53 2.19z"></path></svg></button>
+        <button id="DarkModeToggleButton" style="height: 37.1px; width: fit-content; " class="btn-sm  btn-primary btn me-md-auto">
+            <iconify-icon icon="mdi:theme-light-dark" width="25" height="25" ></iconify-icon>
+        </button>
 
-            <button style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="btn-sm hstack gap-2 iconButton btn-outline-primary btn ms-md-auto" _bl_64="">
-                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--mdi" width="25" height="25" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24" data-icon="mdi:book-open-page-variant-outline" data-width="25"><path fill="currentColor" d="m19 1l-5 5v11l5-4.5zm2 4v13.5c-1.1-.35-2.3-.5-3.5-.5c-1.7 0-4.15.65-5.5 1.5V6c-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5c.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5c1.35-.85 3.8-1.5 5.5-1.5c1.65 0 3.35.3 4.75 1.05c.1.05.15.05.25.05c.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1M10 18.41C8.75 18.09 7.5 18 6.5 18c-1.06 0-2.32.19-3.5.5V7.13c.91-.4 2.14-.63 3.5-.63s2.59.23 3.5.63z"></path></svg>
-                Guide
-            </button>
+        <!-- BUTTON LINKS -->
+        ${buttonLinksHtml}
 
-            <button style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="btn-sm hstack gap-2 iconButton btn-outline-primary btn " _bl_65="">
-                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--carbon" width="25" height="25" preserveAspectRatio="xMidYMid meet" viewBox="0 0 32 32" data-icon="carbon:gateway-api" data-width="25"><path fill="currentColor" d="M17 18.184v-4.368a3 3 0 1 0-2 0v4.369a3 3 0 1 0 2 0ZM16 10a1 1 0 1 1-1 1a1 1 0 0 1 1-1m0 12a1 1 0 1 1 1-1a1 1 0 0 1-1 1"></path><path fill="currentColor" d="M30.414 17.414a2 2 0 0 0 0-2.828l-5.787-5.787l2.9-2.862a2.002 2.002 0 1 0-1.44-1.388l-2.874 2.836l-5.799-5.8a2 2 0 0 0-2.828 0L8.799 7.374L5.937 4.472A2.002 2.002 0 1 0 4.55 5.914l2.835 2.873l-5.8 5.799a2 2 0 0 0 0 2.828l5.8 5.799l-2.835 2.873a1.998 1.998 0 1 0 1.387 1.442l2.862-2.9l5.787 5.786a2 2 0 0 0 2.828 0l5.8-5.799l2.872 2.836a1.998 1.998 0 1 0 1.442-1.387l-2.9-2.863ZM16 29L3 16L16 3l13 13Z"></path></svg>
-                Open API
-            </button>
-
-            <button style="height: 37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="btn-sm hstack gap-2 iconButton btn-warning btn " _bl_66="">
-                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--openmoji" width="25" height="25" preserveAspectRatio="xMidYMid meet" viewBox="0 0 72 72" data-icon="openmoji:love-letter" data-width="25"><path fill="#FFF" d="M65.086 55.5H6.878A2.877 2.877 0 0 1 4 52.623V17.248A2.25 2.25 0 0 1 6.248 15h59.446A2.306 2.306 0 0 1 68 17.306v35.28a2.914 2.914 0 0 1-2.914 2.914"></path><path fill="#EA5A47" d="M47.064 33.552A5.885 5.885 0 0 0 36 30.755a5.885 5.885 0 0 0-11.064 2.797c0 1.398.49 2.68 1.304 3.69l-.002.002L36 49.342l9.762-12.098l-.003-.002a5.86 5.86 0 0 0 1.305-3.69"></path><g fill="none" stroke="#000" stroke-miterlimit="10" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M65.086 55.5H6.878A2.877 2.877 0 0 1 4 52.623V17.248A2.25 2.25 0 0 1 6.248 15h59.446A2.306 2.306 0 0 1 68 17.306v35.28a2.914 2.914 0 0 1-2.914 2.914"></path><path stroke-linecap="round" d="m5 16l15 16m47-16L52 32"></path><path stroke-linejoin="round" d="M47.064 33.552A5.885 5.885 0 0 0 36 30.755a5.885 5.885 0 0 0-11.064 2.797c0 1.398.49 2.68 1.304 3.69l-.002.002L36 49.342l9.762-12.098l-.003-.002a5.86 5.86 0 0 0 1.305-3.69z"></path></g></svg>
-                Donate
-            </button>
-
-            <div style="font-family: 'Lexend Deca', serif !important;" class="dropdown ">
-                <button style="height: 37.1px; width: fit-content;" class="btn-sm iconOnlyButton dropdown-toggle btn-outline-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" _bl_67=""><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--ep" width="25" height="25" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1024 1024" data-icon="ep:guide" data-width="25"><path fill="currentColor" d="M640 608h-64V416h64zm0 160v160a32 32 0 0 1-32 32H416a32 32 0 0 1-32-32V768h64v128h128V768zM384 608V416h64v192zm256-352h-64V128H448v128h-64V96a32 32 0 0 1 32-32h192a32 32 0 0 1 32 32z"></path><path fill="currentColor" d="m220.8 256l-71.232 80l71.168 80H768V256zm-14.4-64H800a32 32 0 0 1 32 32v224a32 32 0 0 1-32 32H206.4a32 32 0 0 1-23.936-10.752l-99.584-112a32 32 0 0 1 0-42.496l99.584-112A32 32 0 0 1 206.4 192m678.784 496l-71.104 80H266.816V608h547.2zm-56.768-144H234.88a32 32 0 0 0-32 32v224a32 32 0 0 0 32 32h593.6a32 32 0 0 0 23.936-10.752l99.584-112a32 32 0 0 0 0-42.496l-99.584-112A32 32 0 0 0 828.48 544z"></path></svg></button>
-                <ul style="cursor: pointer; width: 100%;" class="dropdown-menu">
-                    <li><a class="dropdown-item" href="./Contact.html">Contact Us</a></li>
-                    <li><a class="dropdown-item" href="./About.html">About</a></li>
-                    <li><a class="dropdown-item" href="https://www.youtube.com/@vedastro/videos" target="_blank">Video Guides</a></li>
-                    <li><a class="dropdown-item" href="./JoinOurFamily.html">Join Us</a></li>
-                    <li><a class="dropdown-item" href="./Calculator.html">Calculators</a></li>
-                    <li><a class="dropdown-item" href="./PersonList.html">Person List</a></li>
-                    <li><a class="dropdown-item" href="./TrainAIAstrologer.html">Train AI</a></li>
-                    <li><a class="dropdown-item" href="./Remedy.html">Remedy</a></li>
-                    <li><a class="dropdown-item" href="./Download.html">Download</a></li>
-                    <li><a class="dropdown-item" href="https://vedastroapi.azurewebsites.net/api">API Live Status</a></li>
-                    <li><a class="dropdown-item" href="./TableGenerator.html">Table Generator</a></li>
-                    <li><a class="dropdown-item" href="./BodyTypes.html">Body Types</a></li>
-                    <li><a class="dropdown-item" href="./ImportPerson.html">Import Person</a></li>
-                </ul>
-            </div>
+        <!-- MORE LINKS -->
+        <div style="" class="dropdown ">
+          <button style="height: 37.1px; width: fit-content;" class="btn-sm  dropdown-toggle btn-outline-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <iconify-icon icon="ep:guide" width="25" height="25" ></iconify-icon>
+          </button>
+          <ul style="cursor: pointer; width: 100%;" class="dropdown-menu">
+            ${moreLinksHtml}
+          </ul>
         </div>
+      </div>
 
-        <!-- MOBILE TOP NAV BAR -->
-        <nav class="p-1 navbar rounded-bottom-4 d-block d-md-none" data-bs-theme="dark" style="background-color: #1877f2 !important; margin-top: -1.5rem !important; margin-left: -0.73rem !important; margin-right: -0.73rem !important;">
-            <div class="container-fluid">
-                <a class="navbar-brand active" href="/">
-                    <img src="./images/header-logo.png" style="width: 44px;" class="d-inline-block align-middle">
-                    <span class="ms-1 align-middle">VedAstro</span>
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarTogglerDemo02" aria-controls="navbarTogglerDemo02" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-nav border-opacity-10 border-2 border-top border-white navbar-collapse collapse" id="navbarTogglerDemo02">
-                    <ul class="nav nav-fill">
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./Home.html">
-                                <iconify-icon class="align-bottom" icon="mdi:home" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Home</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./AIChat.html">
-                                <iconify-icon class="align-bottom" icon="mage:we-chat" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">AI Chat</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./Horoscope.html">
-                                <iconify-icon class="align-bottom" icon="fluent:book-star-20-filled" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Horoscope</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./MatchChecker.html">
-                                <iconify-icon class="align-bottom" icon="bi:arrow-through-heart-fill" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Match</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./Numerology.html">
-                                <iconify-icon class="align-bottom" icon="mdi:numbers" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Numerology</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./MatchFinder.html">
-                                <iconify-icon class="align-bottom" icon="game-icons:lovers" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Find Match</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./LifePredictor.html">
-                                <iconify-icon class="align-bottom" icon="gis:map-time" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Life Predictor</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./GoodTimeFinder.html">
-                                <iconify-icon class="align-bottom" icon="svg-spinners:clock" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Good Time Finder</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="./Login.html">
-                                <iconify-icon class="align-bottom" icon="svg-spinners:clock" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Login</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" onclick="VedAstro.OnClickLogOut()">
-                                <iconify-icon class="align-bottom" icon="bx:log-out" width="28" height="28"></iconify-icon>
-                                <span class="ms-1 align-middle" style="">Log Out</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+      <!-- MOBILE LINKS -->
+      <nav class="p-1 navbar rounded-bottom-4 d-block d-md-none" data-bs-theme="dark" style="background-color: #1877f2 !important; margin-top: -1.5rem !important; margin-left: -0.73rem !important; margin-right: -0.73rem !important;">
+        <div class="container-fluid">
+          <a class="navbar-brand active" href="/">
+            <img src="./images/header-logo.png" style="width: 44px;" class="d-inline-block align-middle">
+            <span class="ms-1 align-middle">${this.HeaderName}</span>
+          </a>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarToggler" aria-controls="navbarToggler" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="navbar-nav border-opacity-10 border-2 border-top border-white navbar-collapse collapse" id="navbarToggler">
+            <ul class="nav nav-fill">
+              ${mobileLinksHtml}
+                <li class="nav-item" id="MobileLoginButton">
+                    <a class="nav-link active" href="./Login.html">
+                        <iconify-icon class="align-bottom" icon="mdi:user-circle" width="28" height="28"></iconify-icon>
+                        <span class="ms-1 align-middle" style="">Login</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="MobileLogoutButton">
+                    <a class="nav-link active" onclick="VedAstro.OnClickLogOut()">
+                        <iconify-icon class="align-bottom" icon="bx:log-out" width="28" height="28"></iconify-icon>
+                        <span class="ms-1 align-middle" style="">Log Out</span>
+                    </a>
+                </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
     `;
     }
 }
@@ -2411,7 +2223,7 @@ class PageTopNavbar {
 class PersonSelectorBox {
     // Class properties
     ElementID = "";
-    TitleText = "Title Goes Here";
+    TitleText = "";
     SelectedPersonNameHolderElementID = "selectedPersonNameHolder";
     SearchInputElementClass = "searchInputElementClass";
     // Default data
@@ -2428,9 +2240,11 @@ class PersonSelectorBox {
         // Initialize class properties
         this.ElementID = elementId;
 
-        // Get title and description from the element's custom attributes
+        // Get the DOM element with the given ID
         const element = document.getElementById(elementId);
-        this.TitleText = element.getAttribute("title-text") || "Title Goes Here";
+
+        // Get the custom attributes from the element and assign default values if not present
+        this.TitleText = element.getAttribute("title-text") || "";
 
         //created with nonce from 1 to n, so that multiple selectors supported across pages
         this.SelectedPersonStorageKey = `SelectedPerson-${this.ElementID}`;
@@ -2440,6 +2254,14 @@ class PersonSelectorBox {
 
         // Initialize the component
         this.init();
+    }
+
+    async init() {
+        // Fetch person list data from API or local storage
+        await this.initializePersonListData();
+
+        // Inject the component's HTML into the page
+        await this.initializeMainBody();
     }
 
     /**
@@ -2472,14 +2294,6 @@ class PersonSelectorBox {
         localStorage.setItem(this.SelectedPersonStorageKey, JSON.stringify(person));
     }
 
-    async init() {
-        // Fetch person list data from API or local storage
-        await this.initializePersonListData();
-
-        // Inject the component's HTML into the page
-        await this.initializeMainBody();
-    }
-
     // Save a reference to this instance for global access
     saveInstanceReference() {
         if (!window.vedastro) {
@@ -2498,7 +2312,36 @@ class PersonSelectorBox {
         // Generate and inject the HTML into the page
         $(`#${this.ElementID}`).html(await this.generateHtmlBody());
 
+        // add tooltip to show full birth time and location
+        this.attachTippyToButton();
+
     }
+
+    attachTippyToButton() {
+        const selectedPerson = this.GetSelectedPerson();
+        if (selectedPerson) {
+            const button = $(`#${this.ElementID}`).find(`.${this.SelectedPersonNameHolderElementID}`).parent();
+
+            //location text can sometimes be very long, so auto shorten
+            let locationName = CommonTools.TruncateText(selectedPerson.BirthTime.Location.Name, 20);
+
+            let html = `<div>
+                            <div>🕑 ${selectedPerson.BirthTime.StdTime}</div>
+                            <div>🌍 ${locationName}</div>
+                            <div>📌 ${selectedPerson.BirthTime.Location.Latitude}, ${selectedPerson.BirthTime.Location.Longitude}</div>
+                        </div>`;
+
+            tippy(button[0], {
+                content: html,
+                allowHTML: true,
+                arrow: true,
+                placement: 'right',
+                trigger: 'mouseenter focus',
+                interactive: true //so that can select button
+            });
+        }
+    }
+
 
     //gets list of person to display (checks if underlying cache has been removed)
     async getPersonListDisplay() {
@@ -2547,29 +2390,6 @@ class PersonSelectorBox {
         selectedPerson && this.updatePersonNameGui(selectedPerson);
     }
 
-    // call `PersonSelectorBox.ClearPersonListCache('private')` to clear only the private person list cache,
-    // `PersonSelectorBox.ClearPersonListCache('public')` to clear only the public person list cache,
-    // or`PersonSelectorBox.ClearPersonListCache('all')` to clear both caches.If an invalid type is provided,
-    // a warning will be logged to the console and the cache will not be cleared.
-    static ClearPersonListCache(type) {
-        switch (type) {
-            case 'private':
-                localStorage.removeItem('personList');
-                break;
-            case 'public':
-                localStorage.removeItem('publicPersonList');
-                break;
-            case 'all':
-                localStorage.removeItem('personList');
-                localStorage.removeItem('publicPersonList');
-                break;
-            default:
-                console.warn('Invalid cache type provided. Cache not cleared.');
-        }
-
-        console.log('Person list cache cleared.');
-    }
-
     // Handle click on a person's name in the dropdown (called from html dropdown)
     async onClickPersonName(personId) {
         // Get the full person details based on the ID
@@ -2577,6 +2397,12 @@ class PersonSelectorBox {
 
         //update into view
         this.updatePersonNameGui(personData);
+
+        // Save the selected person to local storage
+        this.SetSelectedPerson(personData);
+
+        // Re-attach Tippy to button with new selected person's birth time
+        this.attachTippyToButton();
     }
 
     //given full person data will update into selected view
@@ -2586,10 +2412,6 @@ class PersonSelectorBox {
         // Update the visible select button text
         var buttonTextHolder = $(`#${this.ElementID}`).find(`.${this.SelectedPersonNameHolderElementID}`);
         buttonTextHolder.html(displayName);
-
-        // Save the selected person to local storage
-        //TODO can be left unupdated when selected person is edited
-        this.SetSelectedPerson(personData);
 
         // Save the selected person ID for instance-specific selection
         this.selectedPersonId = personData.PersonId;
@@ -2640,7 +2462,7 @@ class PersonSelectorBox {
     <div>
       <label class="form-label">${this.TitleText}</label>
       <div class="hstack">
-        <div class="btn-group" style="width:100%;">
+        <div class="btn-group w-auto" style="min-width:231px !important;">
           <button onclick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickDropDown(event)" type="button" class="btn dropdown-toggle btn-outline-primary text-start" data-bs-toggle="dropdown" aria-expanded="false">
             <div class="${this.SelectedPersonNameHolderElementID}" style="cursor: pointer;white-space: nowrap; display: inline-table;" >${selectedPersonText}</div>
           </button>
@@ -2650,7 +2472,7 @@ class PersonSelectorBox {
             <div class="hstack gap-2">
               <input onkeyup="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onKeyUpSearchBar(event)" type="text" class="${this.SearchInputElementClass} form-control ms-0 mb-2 ps-3" placeholder="Search...">
               <div class="mb-2" style="cursor: pointer;">
-                <i class="iconify" data-icon="pepicons-pop:list" data-width="25"></i>
+                <iconify-icon icon="mingcute:list-search-fill" width="25" height="25"></iconify-icon>
               </div>
             </div>
 
@@ -2661,7 +2483,7 @@ class PersonSelectorBox {
             <li><hr class="dropdown-divider"/></li>
             <div class="ms-3 d-flex justify-content-between">
               <div class="hstack gap-2">
-                <div><i class="iconify" data-icon="material-symbols:demography-rounded" data-width="25"></i></div>
+                <div><iconify-icon icon="material-symbols:demography-rounded" width="25" height="25" ></iconify-icon></div>
                 <span style="font-size: 13px; color: rgb(143, 143, 143);">Examples</span>
               </div>
             </div>
@@ -2672,8 +2494,9 @@ class PersonSelectorBox {
 
           </ul>
         </div>
-        <a href="./AddPerson.html" style="height:37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="iconOnlyButton btn-primary btn ms-2">
-          <i class="iconify" data-icon="ant-design:user-add-outlined" data-width="25"></i>
+        <!-- NOTE: storage key is inject into URL, so that "add person" page knows where to set, for auto selection on return -->
+        <a href="./AddPerson.html?SelectedPersonStorageKey=${this.SelectedPersonStorageKey}" style="height:37.1px; width: fit-content; " class=" btn-primary btn ms-2">
+          <iconify-icon icon="ant-design:user-add-outlined" width="25" height="25" ></iconify-icon>
         </a>
       </div>
     </div>
@@ -2719,7 +2542,36 @@ class PersonSelectorBox {
     // Handle click on the dropdown button
     onClickDropDown(event) {
         // Set focus to the search text box for instant input
-        $(`#${this.ElementID}`).find(`.${this.SearchInputElementClass}`).focus();
+        //NOTE:ONLY on desktop, skip for mobile, because keyboard takes screen space
+        if (!CommonTools.IsMobile()) {
+            $(`#${this.ElementID}`).find(`.${this.SearchInputElementClass}`).focus();
+        }
+
+    }
+
+    //------------------------------------------------ STATIC FUNCS ----------------------
+    //called by AddPerson to clear the person list cache
+    // call `PersonSelectorBox.ClearPersonListCache('private')` to clear only the private person list cache,
+    // `PersonSelectorBox.ClearPersonListCache('public')` to clear only the public person list cache,
+    // or`PersonSelectorBox.ClearPersonListCache('all')` to clear both caches.If an invalid type is provided,
+    // a warning will be logged to the console and the cache will not be cleared.
+    static ClearPersonListCache(type) {
+        switch (type) {
+            case 'private':
+                localStorage.removeItem('personList');
+                break;
+            case 'public':
+                localStorage.removeItem('publicPersonList');
+                break;
+            case 'all':
+                localStorage.removeItem('personList');
+                localStorage.removeItem('publicPersonList');
+                break;
+            default:
+                console.warn('Invalid cache type provided. Cache not cleared.');
+        }
+
+        console.log('Person list cache cleared.');
     }
 }
 
@@ -2749,6 +2601,8 @@ class InfoBox {
         this.Title = element.getAttribute("title") || "Title Goes Here";
         this.Description = element.getAttribute("description") || "Description Goes Here";
         this.IconName = element.getAttribute("iconname") || "fluent-emoji:robot";
+        this.ClickUrl = element.getAttribute("ClickUrl") || null;
+        this.IsNewTabOpen = element.getAttribute("IsNewTabOpen") || null;
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
@@ -2764,9 +2618,18 @@ class InfoBox {
         $(`#${this.ElementID}`).html(await this.generateHtmlBody());
     }
 
-    // Handle keyup event on the search input field
+    // when the `InfoBox` element is clicked, it will check if the `ClickUrl`
+    //attribute is present.If it is, it will open the URL in a
+    //new tab if the`IsNewTabOpen` attribute is set to`'true'`, otherwise,
+    //it will open the URL in the same tab.
     onClick(event) {
-        console.log(event);
+        if (this.ClickUrl) {
+            if (this.IsNewTabOpen === 'true') {
+                window.open(this.ClickUrl, '_blank');
+            } else {
+                window.location.href = this.ClickUrl;
+            }
+        }
     }
 
     // Method to generate the HTML for the page header
@@ -2777,8 +2640,8 @@ class InfoBox {
 <div onClick="window.vedastro.InfoBoxInstances['${this.ElementID}'].onClick(event)" class="" style="cursor: pointer; max-width:365px;">
     <div class="alert alert-primary d-flex align-items-center vstack p-2" role="alert" style="">
         <div class="hstack mb-2">
-            <span class="iconify bi flex-shrink-0 me-2" data-icon="${this.IconName}" data-width="50"></span>
-            <div style="font-family: 'Gowun Dodum', serif; line-break: auto;">
+            <iconify-icon class="bi flex-shrink-0 me-2" icon="${this.IconName}" width="50" height="50"></iconify-icon>
+            <div style="line-break: auto;">
                 <strong>${this.Title}</strong><br />
                 ${this.Description}
             </div>
@@ -2808,10 +2671,6 @@ class IconButton {
     // Class properties
     ElementID = "";
     SmallSize = false;
-    Color = "";
-    IconName = "";
-    ButtonText = "";
-    OnClickCallback = null;
 
     // Constructor to initialize the IconButton object
     constructor(elementId) {
@@ -2825,6 +2684,7 @@ class IconButton {
         this.SmallSize = element.getAttribute("SmallSize") === "true";
         this.Color = element.getAttribute("Color") || "";
         this.IconName = element.getAttribute("IconName") || "";
+        this.ExtraStyle = element.getAttribute("ExtraStyle") || "";
         this.ButtonText = element.getAttribute("ButtonText") || "";
         this.OnClickCallback = element.getAttribute("OnClickCallback") || null;
 
@@ -2845,8 +2705,8 @@ class IconButton {
     async generateHtmlButton() {
         // Return the HTML for the button
         return `
-      <button onclick="${this.OnClickCallback}" style="height:37.1px; width: fit-content; font-family: 'Lexend Deca', serif !important;" class="btn-sm hstack gap-2 iconButton btn-${this.Color} btn">
-        <i class="iconify" data-icon="${this.IconName}" data-width="25"></i>
+      <button onclick="${this.OnClickCallback}" style="${this.ExtraStyle} justify-content: center; height:37.1px; width: fit-content; " class="btn-sm hstack gap-2 iconButton btn-${this.Color} btn">
+        <iconify-icon icon="${this.IconName}" width="25" height="25"></iconify-icon>
         ${this.ButtonText}
       </button>
     `;
@@ -2895,7 +2755,7 @@ class TimeInputSimple {
         this.MonthInputID = `${elementId}_MonthInput`;
         this.YearInputID = `${elementId}_YearInput`;
 
-        // Initialize the TimeLocationInputInstances object
+        // Initialize the TimeInputSimple object
         TimeInputSimple.initInstances();
 
         // Save a reference to this instance for global access
@@ -2952,7 +2812,10 @@ class TimeInputSimple {
 
     <div class="input-group">
 
-      <span class="input-group-text gap-2 py-1"><i class="iconify" data-icon="noto-v1:timer-clock" data-width="30"></i>${labelText}</span>
+      <span class="input-group-text gap-2 py-1">
+        <iconify-icon icon="noto-v1:timer-clock" width="30" height="30"></iconify-icon>
+        ${labelText}
+      </span>
       <div class="form-control py-2" >
         <!-- note : on click will toggle picker, so picker cannot be inside TimeInputHolder -->
         <div id="${this.TimeInputHolderID}" onclick="window.vedastro.TimeInputSimpleInstances['${this.ElementID}'].onClickDateTimeInput()" class="d-flex justify-content-between" style="text-wrap: nowrap; overflow: hidden;">
@@ -3083,7 +2946,7 @@ class TimeInputSimple {
         document.addEventListener('click', (e) => this.autoHidePicker(e), { capture: true });
     }
 
-    //if click is outside picker & input then hide it
+    //if click is outside picker & input then hide it & let others know
     autoHidePicker(e) {
         //check if click was outside input
         const pickerHolder = e.target.closest(`#${this.CalendarPickerHolderID}`);
@@ -3092,12 +2955,48 @@ class TimeInputSimple {
         //if click is not on either inputs then hide picker
         if (!(timeInput || pickerHolder)) {
             document.getElementById(this.CalendarPickerHolderID).classList.add('visually-hidden');
+
+            //let others know time set updated
+            $(document).trigger('timeUpdated');
         }
     }
 
     isValid() {
         // Check if all fields have been filled
         return this.hour !== "" && this.minute !== "" && this.meridian !== "" && this.date !== "" && this.month !== "" && this.year !== "";
+    }
+
+    getInputDateTime() {
+        // Get the time values from the input fields
+        let hour = document.getElementById(this.HourInputID).innerText;
+        let minute = document.getElementById(this.MinuteInputID).innerText;
+        let meridian = document.getElementById(this.MeridianInputID).innerText;
+        let date = document.getElementById(this.DateInputID).innerText;
+        let month = document.getElementById(this.MonthInputID).innerText;
+        let year = document.getElementById(this.YearInputID).innerText;
+
+        //convert hour and minute from 12H to 24H
+        let hour24 = hour;
+        if (meridian === 'PM' && hour !== '12') {
+            hour24 = parseInt(hour) + 12;
+        } else if (meridian === 'AM' && hour === '12') {
+            hour24 = '00';
+        }
+
+        //fix formatting to include 0 in front if single digit
+        hour24 = hour24.toString().padStart(2, '0');
+        minute = minute.toString().padStart(2, '0');
+        date = date.toString().padStart(2, '0');
+        month = month.toString().padStart(2, '0');
+
+        //pack data into object
+        return {
+            "Hour24": hour24,
+            "Minute": minute,
+            "Date": date,
+            "Month": month,
+            "Year": year
+        };
     }
 }
 
@@ -3109,24 +3008,30 @@ class TimeInputSimple {
 class GeoLocationInput {
     // Class properties
     ElementID = "";
-    LabelText = "";
+    labelText = "";
     dropdownMenuId = "";
     locationNameInputId = "";
     locations = []; // Save the parsed geolocation array in the class instance
+    $element = null;
+    $locationNameInput = null;
+    $dropdownMenu = null;
+    $latitudeInput = null;
+    $longitudeInput = null;
+    $switchButton = null;
 
     /**
      * Constructor to initialize the GeoLocationInput object.
-     * @param {string} elementId - The ID of the HTML element to render the component in.
+     * @param {string} ElementId - The ID of the HTML element to render the component in.
      */
     constructor(elementId) {
-        // Assign the provided elementId to the ElementID property
+        // Assign the provided elementId to the elementId property
         this.ElementID = elementId;
 
         // Get the DOM element with the given ID
-        const element = document.getElementById(elementId);
+        this.$element = $(`[id="${this.ElementID}"]`);
 
         // Get the custom attributes from the element and assign default values if not present
-        this.LabelText = element.getAttribute("LabelText") || "Location";
+        this.labelText = this.$element.attr("LabelText") || "Location";
 
         // Generate a random ID for the dropdown menu
         this.dropdownMenuId = `dropdown-menu-${Math.random().toString(36).substr(2, 9)}`;
@@ -3134,22 +3039,6 @@ class GeoLocationInput {
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
-
-        // Save a reference to this instance for global access
-        GeoLocationInput.initInstances();
-        window.vedastro.GeoLocationInputInstances[elementId] = this;
-    }
-
-    /**
-     * Initialize the GeoLocationInput instances object.
-     */
-    static initInstances() {
-        if (!window.vedastro) {
-            window.vedastro = {};
-        }
-        if (!window.vedastro.GeoLocationInputInstances) {
-            window.vedastro.GeoLocationInputInstances = {};
-        }
     }
 
     /**
@@ -3157,15 +3046,120 @@ class GeoLocationInput {
      */
     async initializeMainBody() {
         // Empty the content of the element with the given ID
-        $(`#${this.ElementID}`).empty();
+        this.$element.empty();
 
         // Generate the HTML for the page header and inject it into the element
-        $(`#${this.ElementID}`).html(await this.generateHtmlBody());
+        this.$element.html(await this.generateHtmlBody());
 
-        // Add event listener to the switch button
-        $(`#${this.ElementID} .switch-button`).on('click', () => {
-            this.toggleInputFields();
+        // Get the input field and dropdown menu elements
+        this.$locationNameInput = this.$element.find(`[id="${this.locationNameInputId}"]`);
+        this.$dropdownMenu = this.$element.find(`[id="${this.dropdownMenuId}"]`);
+        this.$latitudeInput = this.$element.find(".latitude");
+        this.$longitudeInput = this.$element.find(".longitude");
+        this.$switchButton = this.$element.find(".switch-button");
+
+        // Add event listeners
+        this.attachEventHandlers();
+
+    }
+
+    attachEventHandlers() {
+
+        //user searches for location
+        this.$locationNameInput.on("keyup", (event) => this.onUpdateLocationNameText(event));
+
+        //show drop down with location names or tell user location not found
+        this.$locationNameInput.on("focus", (event) => this.onInputFocus(event));
+
+        //user clicks on dropdown location name
+        this.$dropdownMenu.on("click", ".dropdown-item", (event) => this.onClickPresetLocationName(event));
+
+        //user pastes location name and moves out, so parse to default possible location
+        this.$locationNameInput.on("blur", (event) => {
+            setTimeout(() => {
+                if (!this.isDropdownClick) {
+                    this.onLeaveLocationInput();
+                }
+            }, 100); // Delay the execution so that "dropdown" click has time to fill if user clicked on it 1st
         });
+
+
+        //user types in coordinates without location name, so parse to default possible location name
+        this.$latitudeInput.on("blur", (event) => this.onLeaveCoordinateInput());
+        this.$longitudeInput.on("blur", (event) => this.onLeaveCoordinateInput());
+
+        //users switches between name / coordinate input
+        this.$switchButton.on("click", () => this.toggleInputFields());
+
+
+    }
+
+    async onLeaveLocationInput() {
+        // Get the unparsed location name
+        let unparsedLocationName = this.$locationNameInput.val().trim();
+
+        // Check if the input field is not empty
+        // & has not been filled by dropdown click (only possible because handler is fired with delay)
+        var isNotFilledByDropdown = !(this.isValid());
+        if (unparsedLocationName !== "" && isNotFilledByDropdown) {
+            // Call API and get parsed location
+            var apiUrl = `${VedAstro.ApiDomain}/Calculate/AddressToGeoLocation/Address/${unparsedLocationName}`;
+
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+            const location = data.Payload.AddressToGeoLocation;
+
+            //if location not found let user know invalid location name
+            if (location.Name === 'Empty') {
+                Swal.fire({ icon: "error", title: "Location not found!", html: `The location <strong>"${unparsedLocationName}"</strong> not found!`, confirmButtonText: "OK" });
+                //clear coordinates input to raise invalid alarm
+                this.$latitudeInput.empty();
+                this.$longitudeInput.empty();
+            } else {
+                //location found, fill inputs
+                this.$locationNameInput.val(location.Name);
+                this.$latitudeInput.val(location.Latitude.toFixed(1)); // round for nice fit GUI
+                this.$longitudeInput.val(location.Longitude.toFixed(1)); // round for nice fit GUI
+
+                //let others know location set successfully
+                $(document).trigger('locationUpdated');
+
+            }
+        }
+
+    }
+
+    //when user types in coordinates, get the location name from API and fill that
+    //overrides what ever user typed in location name, since now in coordinates view/mode
+    async onLeaveCoordinateInput() {
+        // Get typed in coordinates
+        const latitude = this.$latitudeInput.val().trim();
+        const longitude = this.$longitudeInput.val().trim();
+
+        //only continue if both coordinates is filled
+        if (latitude === "" || longitude === "") { return; }
+
+        // Call API and get parsed location name
+        let apiUrl = `${VedAstro.ApiDomain}/Calculate/CoordinatesToGeoLocation/Latitude/${latitude}/Longitude/${longitude}`;
+
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        const location = data.Payload.CoordinatesToGeoLocation;
+
+        //if location not found let user know invalid location name
+        if (location.Name === 'Empty') {
+            Swal.fire({ icon: "error", title: "Location not found!", html: `No location for <strong>Lat:"${latitude}" & Long:"${longitude}"</strong>`, confirmButtonText: "OK" });
+            //clear location name input to raise invalid alarm
+            this.$locationNameInput.empty();
+        } else {
+            //location found, fill inputs
+            this.$locationNameInput.val(location.Name);
+            this.$latitudeInput.val(location.Latitude.toFixed(1)); // round for nice fit GUI
+            this.$longitudeInput.val(location.Longitude.toFixed(1)); // round for nice fit GUI
+
+            //let others know location set successfully
+            $(document).trigger('locationUpdated');
+        }
     }
 
     /**
@@ -3177,8 +3171,11 @@ class GeoLocationInput {
                 <!-- Location name input with auto dropdown -->
                 <div class="input-group location-name">
                     <!-- HEADER ICON -->
-                    <span class="input-group-text gap-2 py-1"><i class="iconify" data-icon="streamline-emojis:globe-showing-americas" data-width="34"></i>${this.LabelText}</span>
-                    <input id="${this.locationNameInputId}" onkeyup="window.vedastro.GeoLocationInputInstances['${this.ElementID}'].onUpdateLocationNameText(event)" type="text" class="form-control " placeholder="New York" style="font-weight: 600; font-size: 16px;" data-bs-toggle="dropdown" onfocus="window.vedastro.GeoLocationInputInstances['${this.ElementID}'].onInputFocus(event)">
+                    <span class="input-group-text gap-2 py-1">
+                        <iconify-icon icon="streamline-emojis:globe-showing-americas" width="34" height="34"></iconify-icon>
+                        ${this.labelText}
+                    </span>
+                    <input id="${this.locationNameInputId}" type="text" class="form-control " placeholder="New York" style="font-weight: 600; font-size: 16px;" data-bs-toggle="dropdown">
                     <ul id="${this.dropdownMenuId}" class="dropdown-menu" aria-labelledby="${this.locationNameInputId}">
                         <li><a class="dropdown-item text-muted" href="#">
                             <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img" width="18" height="18" viewBox="0 0 24 24" data-icon="grommet-icons:map" data-width="18" class="iconify iconify--grommet-icons"><path fill="none" stroke="currentColor" stroke-width="2" d="M15 15h4l3 7H2l3-7h4m4-7a1 1 0 1 1-2 0a1 1 0 0 1 2 0M6 8c0 5 6 10 6 10s6-5 6-10c0-3.417-2.686-6-6-6S6 4.583 6 8Z"></path></svg>
@@ -3192,7 +3189,10 @@ class GeoLocationInput {
                 <!-- Latitude & long input -->
                 <div class="input-group d-none lat-lng-fields">
                     <!-- HEADER ICON -->
-                    <span class="input-group-text gap-2 py-1"><i class="iconify" data-icon="streamline-emojis:globe-showing-americas" data-width="34"></i>${this.LabelText}</span>
+                    <span class="input-group-text gap-2 py-1">
+                        <iconify-icon icon="streamline-emojis:globe-showing-americas" width="34" height="34"></iconify-icon>
+                        ${this.labelText}
+                    </span>
                     <span class="input-group-text px-2">Lat</span>
                     <input type="number" class="form-control px-2 latitude" placeholder="4.3°" style="font-weight: 600; font-size: 16px;">
                     <span class="input-group-text px-2">Long</span>
@@ -3200,9 +3200,9 @@ class GeoLocationInput {
                 </div>
 
                 <!-- Input Swither button -->
-                <button class="switch-button btn-primary btn p-2" style="font-family: 'Lexend Deca', serif !important;">
-                    <i class="iconify globeIcon" data-icon="bx:globe" data-width="25"></i>
-                    <i class="iconify mapIcon d-none" data-icon="bx:map" data-width="25"></i>
+                <button class="switch-button btn-primary btn py-1" style="padding-right: 2px;padding-left: 3px;">
+                    <iconify-icon class="pt-1 globeIcon" icon="bx:globe" width="25" height="25"></iconify-icon>
+                    <iconify-icon class="pt-1 mapIcon d-none" icon="bx:map" width="25" height="25"></iconify-icon>
                 </button>
             </div>
         `;
@@ -3210,100 +3210,87 @@ class GeoLocationInput {
 
     /**
      * Method to handle click on preset location name.
-     * @param {Event} eventObject - The event object triggered by the click.
+     * @param {Event} event - The event object triggered by the click.
      */
-    onClickPresetLocationName(eventObject) {
+    onClickPresetLocationName(event) {
         // Get the location name from the clicked element
-        const locationName = eventObject.target.textContent;
+        const locationName = event.target.textContent;
 
         // Find the corresponding location object from the saved instance
         const location = this.locations.find(location => location.Name === locationName);
 
         if (location) {
-            // Save the selected location JSON for this instance
-            this.selectedLocation = location;
-
             // Fill location name, longitude and latitude values into HTML
-            document.querySelector(`#${this.ElementID} .location-name input`).value = location.Name;
-            document.querySelector(`#${this.ElementID} .latitude`).value = location.Latitude.toFixed(1); //round for nice fit GUI
-            document.querySelector(`#${this.ElementID} .longitude`).value = location.Longitude.toFixed(1); //round for nice fit GUI
+            this.$locationNameInput.val(location.Name);
+            this.$latitudeInput.val(location.Latitude.toFixed(1)); //round for nice fit GUI
+            this.$longitudeInput.val(location.Longitude.toFixed(1)); //round for nice fit GUI
         }
     }
 
     /**
      * Method to update the location name text.
-     * @param {Event} eventObject - The event object triggered by the input field.
+     * @param {Event} event - The event object triggered by the input field.
      */
-    onUpdateLocationNameText(eventObject) {
+    onUpdateLocationNameText(event) {
         // Get the user input from the event target
-        const userTextInput = eventObject.target.value;
+        const userTextInput = event.target.value;
 
         // Call the API to search for location names based on the user input
         this.locationNameSearchWithAPI(userTextInput)
             .then(locations => {
-                // Get the parent element of the input field
-                const inputParent = eventObject.target.closest(`#${this.ElementID}`);
-
-                // Get the dropdown menu element within the parent element
-                const dropdownMenu = inputParent.querySelector(`#${this.dropdownMenuId}`);
-
                 // Clear any existing content in the dropdown menu
-                dropdownMenu.innerHTML = "";
+                this.$dropdownMenu.empty();
 
                 if (locations.length === 0) {
                     // if no locations are found then only insert below html to notify user no location with that name,
                     // but input must have text, else show `search message` instead
                     if (userTextInput.trim() !== "") {
-                        dropdownMenu.innerHTML = `
-                        <li><a class="dropdown-item text-muted" href="#">
-                            <i class="iconify" data-icon="tdesign:map-cancel" data-width="18"></i>
-                            Not found, try input coordinates</a>
-                        </li>
-                    `;
+                        this.$dropdownMenu.html(`
+                            <li><a class="dropdown-item text-muted" href="#">
+                                <iconify-icon icon="tdesign:map-cancel" width="18" height="18"></iconify-icon>
+                                Not found, try input coordinates</a>
+                            </li>
+                        `);
                     } else {
-                        dropdownMenu.innerHTML = `
-                        <li><a class="dropdown-item text-muted" href="#">
-                            <i class="iconify" data-icon="grommet-icons:map" data-width="18"></i>
-                            Search city, town, state</a>
-                        </li>
-                    `;
+                        this.$dropdownMenu.html(`
+                            <li><a class="dropdown-item text-muted" href="#">
+                                <iconify-icon icon="grommet-icons:map" width="18" height="18"></iconify-icon>
+                                Search city, town, state</a>
+                            </li>
+                        `);
                     }
                 } else {
                     // Generate HTML for the locations
                     const locationsHtml = locations.map(location => `
-                    <li><a class="dropdown-item" onClick="window.vedastro.GeoLocationInputInstances['${this.ElementID}'].onClickPresetLocationName(event)">${location.Name}</a></li>
-                `).join("");
-                    dropdownMenu.innerHTML = locationsHtml;
+                        <li><a class="dropdown-item">${location.Name}</a></li>
+                    `).join("");
+                    this.$dropdownMenu.html(locationsHtml);
                 }
 
                 // Show the dropdown menu
-                dropdownMenu.classList.remove("d-none");
+                this.$dropdownMenu.removeClass("d-none");
             });
     }
 
-    onInputFocus(event) {
-        // Get the dropdown menu element that is associated with the input field that received focus
-        const dropdownMenu = event.target.closest(`#${this.ElementID}`).querySelector(`#${this.dropdownMenuId}`);
-
+    onInputFocus() {
         // Remove the 'd-none' class from the dropdown menu, which makes it visible
-        dropdownMenu.classList.remove("d-none");
+        this.$dropdownMenu.removeClass("d-none");
     }
 
     /**
      * Method to toggle the input fields.
      */
     toggleInputFields() {
-        $(`#${this.ElementID} .location-name`).toggleClass('d-none');
-        $(`#${this.ElementID} .lat-lng-fields`).toggleClass('d-none');
+        this.$element.find(".location-name").toggleClass('d-none');
+        this.$element.find(".lat-lng-fields").toggleClass('d-none');
 
         // toggle button icons based on class
-        const switchButton = $(`#${this.ElementID} .switch-button`);
-        if (switchButton.find('.globeIcon').hasClass('d-none')) {
-            switchButton.find('.mapIcon').addClass('d-none');
-            switchButton.find('.globeIcon').removeClass('d-none');
+        if (this.$switchButton.find('.globeIcon').hasClass('d-none')) {
+            this.$switchButton.find('.mapIcon').addClass('d-none');
+            this.$switchButton.find('.globeIcon').removeClass('d-none');
         } else {
-            switchButton.find('.globeIcon').addClass('d-none');
-            switchButton.find('.mapIcon').removeClass('d-none');
+            this.$switchButton.find('.globeIcon').addClass('d-none');
+            this.$switchButton.find('.mapIcon').removeClass('d-none');
         }
     }
 
@@ -3333,13 +3320,28 @@ class GeoLocationInput {
     }
 
     isValid() {
+        const locationName = this.$locationNameInput.val();
+        const latitude = this.$latitudeInput.val();
+        const longitude = this.$longitudeInput.val();
+
+        return locationName !== "" && latitude !== "" && longitude !== "";
+    }
+
+    getInputLocation() {
+        // Get the location values from the input fields
         const locationName = document.querySelector(`#${this.ElementID} .location-name input`).value;
         const latitude = document.querySelector(`#${this.ElementID} .latitude`).value;
         const longitude = document.querySelector(`#${this.ElementID} .longitude`).value;
 
-        return locationName !== "" && latitude !== "" && longitude !== "";
+        return {
+            "Name": locationName,
+            "Latitude": latitude,
+            "Longitude": longitude
+        };
+
     }
 }
+
 
 /**
  * Represents a time location input component.
@@ -3355,15 +3357,6 @@ class TimeLocationInput {
     TimeInputSimpleInstance;
     GeoLocationInputInstance;
 
-    static initInstances() {
-        if (!window.vedastro) {
-            window.vedastro = {};
-        }
-        if (!window.vedastro.TimeLocationInputInstances) {
-            window.vedastro.TimeLocationInputInstances = {};
-        }
-    }
-
     // Constructor to initialize the object
     constructor(elementId) {
         // Assign the provided elementId to the ElementID property
@@ -3373,19 +3366,17 @@ class TimeLocationInput {
         const element = document.getElementById(elementId);
 
         // Get the custom attributes from the element and assign default values if not present
-        this.LabelText = element.getAttribute("LabelText") || "Label Goes Here";
+        this.LabelText = element.getAttribute("LabelText") || "";
 
         // Generate a random ID for TimeInputSimple
         var randoTron = Math.random().toString(36).substr(2, 9);
         this.TimeInputSimpleID = `TimeInputSimpleID-${randoTron}`;
         this.GeoLocationInputID = `GeoLocationInputID-${randoTron}`;
+        this.TimezoneOffsetInputID = `TimezoneOffsetInputID-${randoTron}`;
+        this.TimezoneOffsetInputHolderID = `TimezoneOffsetInputHolderID-${randoTron}`; //to hide/show
 
         // Call the method to initialize the main body of the page header
         this.initializeMainBody();
-
-        // Save a reference to this instance for global access
-        TimeLocationInput.initInstances();
-        window.vedastro.TimeLocationInputInstances[elementId] = this;
 
     }
 
@@ -3400,63 +3391,94 @@ class TimeLocationInput {
         // render subview components via code now that sub view base HTML is in DOM
         this.TimeInputSimpleInstance = new TimeInputSimple(this.TimeInputSimpleID);
         this.GeoLocationInputInstance = new GeoLocationInput(this.GeoLocationInputID);
+
+        //when time or location input is ready,
+        //update timezone offset accurately
+        this.attachEventHandlers();
     }
+
+    attachEventHandlers() {
+
+        //when time or location input is ready,
+        //update timezone offset accurately
+        $(document).on('locationUpdated', (event) => this.updateTimezoneOffset());
+        $(document).on('timeUpdated', (event) => this.updateTimezoneOffset());
+
+
+    }
+
+    //when time or location input is ready,
+    //update timezone offset accurately
+    async updateTimezoneOffset() {
+        //make sure both time & location is valid (filled)
+        var timeIsValid = this.TimeInputSimpleInstance.isValid();
+        var locationIsValid = this.GeoLocationInputInstance.isValid();
+
+        //if both is filled, then update timezone input using API
+        if (timeIsValid && locationIsValid) {
+            // get the inputed location & time data
+            const inputTime = this.TimeInputSimpleInstance.getInputDateTime();
+            const inputLocation = this.GeoLocationInputInstance.getInputLocation();
+
+            // call API to get exact timezone for location at give time
+            var timeZone = await this.getTimezoneForLocationFromApi(inputLocation.Name, inputLocation.Latitude, inputLocation.Longitude, inputTime.Hour24, inputTime.Minute, inputTime.Date, inputTime.Month, inputTime.Year); // Format: +08:00
+
+            //inject correct timezone into view
+            $(`#${this.TimezoneOffsetInputID}`).val(timeZone);
+        }
+    }
+
 
     // Method to generate the HTML for the page header
     async generateHtmlBody() {
         return `
-      <div id="${this.TimeInputSimpleID}" LabelText="${this.LabelText}"></div>
-      <div id="${this.GeoLocationInputID}" class="mt-3" LabelText="${this.LabelText}"></div>
+        <div id="${this.TimeInputSimpleID}" LabelText="Time"></div>
+        <!-- Timezone Offset (advanced menu) -->
+        <div id="${this.TimezoneOffsetInputHolderID}" style="display:none;">
+            <div class="input-group mt-3">
+                <span class="input-group-text gap-2 py-1" style="width: 136px;"><iconify-icon icon="stash:globe-timezone-light" width="35" height="35"></iconify-icon>Timezone</span>
+                <input id="${this.TimezoneOffsetInputID}" type="text" class="form-control" placeholder="+00:00" style="font-weight: 600; font-size: 16px;">
+            </div>
+        </div>
+
+        <div id="${this.GeoLocationInputID}" class="mt-3" LabelText="Map"></div>
     `;
     }
 
     // Method to get the time and location as a JSON object
     // exp out : {"StdTime":"13:54 25/10/1992 +08:00","Location":{"Name":"Taiping","Longitude":103.82,"Latitude":1.352}}
-    getTimeJson() {
-        // Get the instances of the TimeInputSimple and GeoLocationInput classes
-        const timeInputSimple = this.TimeInputSimpleInstance;
-        const geoLocationInput = this.GeoLocationInputInstance;
-
-        // Get the time values from the input fields
-        const hour = document.getElementById(timeInputSimple.HourInputID).innerText;
-        const minute = document.getElementById(timeInputSimple.MinuteInputID).innerText;
-        const meridian = document.getElementById(timeInputSimple.MeridianInputID).innerText;
-        const date = document.getElementById(timeInputSimple.DateInputID).innerText;
-        const month = document.getElementById(timeInputSimple.MonthInputID).innerText;
-        const year = document.getElementById(timeInputSimple.YearInputID).innerText;
-
-        //convert hour and minute from 12H to 24H
-        let hour24 = hour;
-        if (meridian === 'PM' && hour !== '12') {
-            hour24 = parseInt(hour) + 12;
-        } else if (meridian === 'AM' && hour === '12') {
-            hour24 = '00';
-        }
-
-        // Get the location values from the input fields
-        const locationName = document.querySelector(`#${geoLocationInput.ElementID} .location-name input`).value;
-        const latitude = document.querySelector(`#${geoLocationInput.ElementID} .latitude`).value;
-        const longitude = document.querySelector(`#${geoLocationInput.ElementID} .longitude`).value;
+    async getTimeJson() {
+        // get the inputed location & time data
+        const inputTime = this.TimeInputSimpleInstance.getInputDateTime();
+        const inputLocation = this.GeoLocationInputInstance.getInputLocation();
 
         // Construct the StdTime string in the format "HH:MM DD/MM/YYYY tmz"
-        var timeZone = TimeLocationInput.getSystemTimezone(); // Format: +08:00
-        const stdTime = `${hour24.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${date.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year} ${timeZone}`;
-
-        // Construct the Location object with Name, Longitude, and Latitude properties
-        const location = {
-            Name: locationName,
-            Longitude: longitude,
-            Latitude: latitude
-        };
+        var timeZone = await this.getTimezoneForLocationFromApi(inputLocation.Name, inputLocation.Latitude, inputLocation.Longitude, inputTime.Hour24, inputTime.Minute, inputTime.Date, inputTime.Month, inputTime.Year); // Format: +08:00
+        const stdTime = `${inputTime.Hour24}:${inputTime.Minute} ${inputTime.Date}/${inputTime.Month}/${inputTime.Year} ${timeZone}`;
 
         // Construct the timeObject with StdTime and Location properties
         const timeObject = {
             StdTime: stdTime,
-            Location: location
+            Location: inputLocation
         };
 
         // Return the timeObject
         return timeObject;
+    }
+
+    async getTimezoneForLocationFromApi(locationName, latitude, longitude, hour, minute, date, month, year) {
+
+        // Construct API URL
+        const apiUrl = `${VedAstro.ApiDomain}/Calculate/GeoLocationToTimezone/Location/${locationName}/Coordinates/${latitude},${longitude}/Time/${hour}:${minute}/${date}/${month}/${year}/+00:00`;
+
+        // Make API call and handle response
+        const response = await fetch(apiUrl);
+
+        const data = await response.json();
+        if (data.Status === "Pass") {
+            return data.Payload.GeoLocationToTimezone;
+        }
+
     }
 
     static getSystemTimezone() {
@@ -3466,7 +3488,6 @@ class TimeLocationInput {
         const minutes = Math.abs(timezoneOffset) % 60;
         return (timezoneOffset <= 0 ? '+' : '-') + String(hours).padStart(2, '0') + ":" + String(minutes).padStart(2, '0');
     }
-
 
     getDateTimeOffset() {
         // Get the instances of the TimeInputSimple and GeoLocationInput classes
@@ -3505,7 +3526,6 @@ class TimeLocationInput {
         return dateTime;
     }
 
-
     isValid() {
         // Get the time and location input fields
         const timeInputSimple = this.TimeInputSimpleInstance;
@@ -3518,11 +3538,10 @@ class TimeLocationInput {
         return false;
     }
 
-
 }
 
-
 //Helps to create a table with astro data columns
+//TODO Marked for oblivion replaced with AllAstroDataTable
 class AstroTable {
     // Class fields
     Ayanamsa = "Lahiri";
@@ -3563,7 +3582,7 @@ class AstroTable {
 
     constructor(rawSettings) {
         //correct if property names is camel case (for Blazor)
-        var settings = CommonTools.ConvertCamelCaseKeysToPascalCase(rawSettings);
+        var settings = CommonTools.CamelCaseKeysToPascalCase(rawSettings);
 
         //if column data is not supplied use default
         if (!settings.ColumnData) {
@@ -3778,10 +3797,10 @@ class AstroTable {
 
             var htmlContent = `
                     <h3 style="margin-bottom: -11px;">
-                        <span class="iconify me-2" data-icon="${this.HeaderIcon}" data-width="38" data-height="38"></span>
+                        <iconify-icon class="me-2" icon="${this.HeaderIcon}" width="38" height="38"></iconify-icon>
                         ${this.KeyColumn}
                         <button id="${this.EditButtonId}" style="scale: 0.6;" class="ms-1 mb-1 btn btn-sm btn-outline-primary">
-                            <span class="iconify" data-icon="majesticons:edit-pen-2-line" data-width="30" data-height="30"></span>
+                            <iconify-icon icon="majesticons:edit-pen-2-line" width="30" height="30"></iconify-icon>
                         </button>
                     </h3>
                     <hr />`;
@@ -3798,8 +3817,12 @@ class AstroTable {
         //# TABLE
         //create empty table inside main holder
         //table will be filled below
+        //NOTE: "table responsive" needed to make nicely scrollable in mobile
         $(`#${this.ElementID}`).append(
-            `<table id="${this.TableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=""></table>`
+            `<div class="table-responsive">
+                <table id="${this.TableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=""></table>
+             </div>
+             `
         );
 
         //generate table from inputed data
@@ -3809,7 +3832,7 @@ class AstroTable {
     ConvertRawParamsToUrl(userInputParams) {
         //handle camel case to pascal case (for blazor only)
         userInputParams =
-            CommonTools.ConvertCamelCaseKeysToPascalCase(userInputParams);
+            CommonTools.CamelCaseKeysToPascalCase(userInputParams);
 
         //extract from input
         var timeUrlParam = userInputParams.TimeUrl;
@@ -4128,7 +4151,7 @@ class AstroTable {
             <div class="hstack gap-3">
                 <div class="input-group w-50">
                     <span class="input-group-text">
-                        <span class="iconify me-2" data-icon="carbon:virtual-column-key" data-width="25" data-height="25"></span>
+                        <iconify-icon class="me-2" icon="carbon:virtual-column-key" width="25" height="25"></iconify-icon>
                         Key Column
                     </span>
                     ${keyColumnSelector}
@@ -4138,7 +4161,7 @@ class AstroTable {
                   <label class="form-check-label" for="TableSortingEnableSwitch">Enable Sorting</label>
                 </div>
                 <button id="EditTableResetButton" type="button" class="btn btn-primary">
-                    <span class="iconify me-2" data-icon="material-symbols:device-reset-rounded" data-width="25" data-height="25"></span>
+                    <iconify-icon class="me-2" icon="material-symbols:device-reset-rounded" width="25" height="25"></iconify-icon>
                     Reset
                 </button>
             </div>
@@ -4284,7 +4307,7 @@ class AstroTable {
 class AshtakvargaTable {
     constructor(rawSettings) {
         //correct if property names is camel case (for Blazor)
-        var settings = CommonTools.ConvertCamelCaseKeysToPascalCase(rawSettings);
+        var settings = CommonTools.CamelCaseKeysToPascalCase(rawSettings);
 
         //if column data is not supplied use default
         if (!settings.ColumnData) {
@@ -4322,7 +4345,7 @@ class AshtakvargaTable {
 
     async GenerateTable(inputArguments) {
         inputArguments =
-            CommonTools.ConvertCamelCaseKeysToPascalCase(inputArguments);
+            CommonTools.CamelCaseKeysToPascalCase(inputArguments);
 
         //clear old data if any
         $(`#${this.ElementID}`).empty();
@@ -4335,9 +4358,8 @@ class AshtakvargaTable {
 
             var htmlContent = `
                 <h3 style="margin-bottom: -11px;">
-                    <span class="iconify me-2" data-icon="${this.HeaderIcon}" data-width="38" data-height="38"></span>
+                    <iconify-icon class="me-2" icon="${this.HeaderIcon}" width="38" height="38"></iconify-icon>
                     ${this.KeyColumn}
-                    
                 </h3>
                 <hr />`;
 
@@ -4354,11 +4376,15 @@ class AshtakvargaTable {
         //create empty table inside main holder
         //table will be filled later
         $(`#${this.ElementID}`).append(
-            `<table id="${this.SarvashtakavargaTableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=" font-size: 12px; font-weight: 700; "></table>`
+            `<div class="table-responsive">
+                <table id="${this.SarvashtakavargaTableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=" font-size: 12px; font-weight: 700; "></table>
+            </div>`
         );
 
         $(`#${this.ElementID}`).append(
-            `<table id="${this.BhinnashtakavargaTableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=" font-size: 12px; font-weight: 700; "></table>`
+            `<div class="table-responsive">
+                <table id="${this.BhinnashtakavargaTableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=" font-size: 12px; font-weight: 700; "></table>
+             </div>`
         );
 
         //generate table from inputed data
@@ -4389,6 +4415,7 @@ class AshtakvargaTable {
 
     //code where Ashtakvarga in JSON format given by API is converted into nice HTML
     static async GenerateHTMLTableFromJson(data, tableId) {
+        //note "table responsive" needed to make nicely scrollable in mobile
         let html = '<table border="1">';
 
         // Add table headers
@@ -4460,13 +4487,10 @@ class StrengthChart {
     async fetchPlanetStrength(inputArguments) {
         try {
             const response = await fetch(`${VedAstro.ApiDomain}/Calculate/PlanetShadbalaPinda/PlanetName/All/${inputArguments.TimeUrl}Ayanamsa/${inputArguments.Ayanamsa}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } //server connection check
+
             const data = await response.json();
-            if (data.Status !== 'Pass') {
-                throw new Error('Failed to retrieve data. Status is not "Pass".');
-            }
+            if (data.Status !== 'Pass') { throw new Error('Failed to retrieve data. Status is not "Pass".'); } //calc data check
 
             // arrange planets and their strengths for easy access by name
             const shadbalaPindaData = {};
@@ -4516,7 +4540,7 @@ class StrengthChart {
         // Return the HTML for the page header, including conditional blocks for different screen sizes
         return `
         <h3 style="margin-bottom: -11px;">
-            <span class="iconify me-2" data-icon="twemoji:antenna-bars" data-width="38" data-height="38"></span>
+            <iconify-icon class="me-2" icon="twemoji:antenna-bars" width="38" height="38"></iconify-icon>
             Strength
         </h3>
         <hr />
@@ -4740,7 +4764,7 @@ class HoroscopeChat {
                 <button id="SendChatButton"
                         onclick="window.vedastro.horoscopechat.onClickSendChat()"type="button"
                         class="rounded-0 rounded-end-4 btn btn-success btn-rounded float-end">
-                            <span class="iconify me-1" data-icon="majesticons:send" data-width="25" data-height="25"></span>
+                            <iconify-icon class="me-1" icon="majesticons:send" width="25" height="25"></iconify-icon>
                             Send
                 </button>
             </div>
@@ -4755,7 +4779,7 @@ class HoroscopeChat {
                 <button id="StartChatButton"
                         onclick="window.vedastro.horoscopechat.onStartChatButton()"type="button"
                         class="rounded-0 rounded-end-4 btn btn-success btn-rounded float-end">
-                            <span class="iconify me-1" data-icon="majesticons:send" data-width="25" data-height="25"></span>
+                            <iconify-icon class="me-1" icon="majesticons:send" width="25" height="25"></iconify-icon>
                             Start Chat
                 </button>
             </div>
@@ -4773,7 +4797,7 @@ class HoroscopeChat {
 
     initializeSettingData(rawSettings) {
         //correct if property names is camel case (for Blazor)
-        var settings = CommonTools.ConvertCamelCaseKeysToPascalCase(rawSettings);
+        var settings = CommonTools.CamelCaseKeysToPascalCase(rawSettings);
 
         //expand data inside settings input
         this.ElementID = settings.ElementID;
@@ -5172,10 +5196,10 @@ class HoroscopeChat {
             ? ""
             : `<div class="hstack gap-2">
     <button title="Bad answer" type="button" onclick="window.vedastro.horoscopechat.rateMessage(this, -1)" class="btn btn-danger" style="padding: 0px 5px;">
-      <span class="iconify" data-icon="icon-park-outline:bad-two" data-width="18" data-height="18"></span>
+        <iconify-icon icon="icon-park-outline:bad-two" width="18" height="18"></iconify-icon>
     </button>
     <button title="Good answer" type="button" onclick="window.vedastro.horoscopechat.rateMessage(this, 1)" class="btn btn-primary" style="padding: 0px 5px;">
-      <span class="iconify" data-icon="icon-park-outline:good-two" data-width="18" data-height="18"></span>
+        <iconify-icon icon="icon-park-outline:good-two" width="18" height="18"></iconify-icon>
     </button>
   </div>`;
 
@@ -5591,3 +5615,2116 @@ class HoroscopeChat {
         this.printAIReplyMessageToView(aiReplyData);
     }
 }
+
+class AlgorithmsSelector {
+    // Class properties
+    ElementID = "";
+    ApiDataStorageKey = "AllEventsChartAlgorithms";
+
+    // Constructor to initialize the PageHeader object
+    constructor(elementId, defaultSelection) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+        this.DefaultSelection = defaultSelection;
+
+        // Call the method to initialize the main body of the page header
+        this.initializeMainBody();
+    }
+
+    // Method to initialize the main body of the page header
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Generate the HTM and inject it into the element
+        let htmlString = await this.generateHtmlBody();
+        $(`#${this.ElementID}`).html(htmlString);
+
+        //set defaults
+        algoSelector.programaticallySelect(this.DefaultSelection);
+
+        //initialize help text
+        HelpTextIcon.InitAllIn(`#${this.ElementID}`);
+    }
+
+    //given a string like "General,PlanetStrengthDegree,IshtaKashtaPhalaDegree"
+    //will select the checkboxes programatically
+    programaticallySelect(selectionString) {
+
+        // Split the selection string into an array of algorithm names
+        const selectedAlgorithms = selectionString.split(",");
+
+        // Get the element with the specified ID
+        const element = document.getElementById(this.ElementID);
+
+        // Select all checkboxes within the element
+        const checkboxes = element.querySelectorAll('input[type="checkbox"]');
+
+        // Iterate over the checkboxes and update their checked state
+        checkboxes.forEach((checkbox) => {
+            // Get the algorithm name from the checkbox ID (without the "checkbox_" prefix)
+            const algorithmName = checkbox.id.replace("checkbox_", "");
+
+            // Check if the algorithm name is in the selected algorithms array
+            if (selectedAlgorithms.includes(algorithmName)) {
+                // If it is, set the checkbox to checked
+                checkbox.checked = true;
+            } else {
+                // If not, set the checkbox to unchecked
+                checkbox.checked = false;
+            }
+        });
+    }
+
+    /**
+     * Returns a string of selected algorithm names or null if none are selected. EXP: Neutral,StrongestPlanet
+     */
+    getSelectedAlgorithmsAsString() {
+        // Select all checkboxes inside the element with the specified ID
+        const checkboxes = document.querySelectorAll(`#${this.ElementID} input[type="checkbox"]`);
+
+        // Convert the NodeList to an array and filter to only include checked checkboxes
+        const selectedAlgorithms = Array.from(checkboxes)
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.id.replace('checkbox_', '')); // Remove 'checkbox_' prefix from IDs
+
+        // Return null if no algorithms are selected, otherwise return a comma-separated string of algorithm names
+        return selectedAlgorithms.length === 0 ? null : selectedAlgorithms.join(',');
+    }
+
+    async fetchAlgorithmListFromApi() {
+        const storedData = localStorage.getItem(this.ApiDataStorageKey);
+
+        if (storedData) {
+            try {
+                const data = JSON.parse(storedData);
+                if (data.Status === "Pass") {
+                    return data.Payload;
+                } else {
+                    localStorage.removeItem(this.ApiDataStorageKey);
+                }
+            } catch (error) {
+                console.error("Error parsing stored data:", error);
+                localStorage.removeItem(this.ApiDataStorageKey);
+            }
+        }
+
+        try {
+            const response = await fetch(`${VedAstro.ApiDomain}/Calculate/GetAllEventsChartAlgorithms`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.Status !== 'Pass') {
+                throw new Error('Failed to retrieve data. Status is not "Pass".');
+            }
+            localStorage.setItem(this.ApiDataStorageKey, JSON.stringify(data));
+            return data.Payload;
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            return []; // Return an empty array if there's an error
+        }
+    }
+
+    convertAlgoListToHtml(algorithmInfoList) {
+        let generatedHtml = "";
+
+        //each info contains name & description
+        algorithmInfoList.forEach((algoInfo) => {
+            generatedHtml += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="" id="checkbox_${algoInfo.Name}">
+          <label class="form-check-label" for="checkbox_${algoInfo.Name}">
+            ${CommonTools.CamelPascalCaseToSpaced(algoInfo.Name)}
+            <div class="help-text-icon">${algoInfo.Description}</div>
+          </label>
+        </div>
+      `;
+        });
+
+        return generatedHtml;
+    }
+
+    // Method to generate the HTML
+    async generateHtmlBody() {
+
+        //get name & description about available algorithms from API
+        let algorithmList = await this.fetchAlgorithmListFromApi();
+
+        //convert to data to HTML
+        let algorithmListHtml = this.convertAlgoListToHtml(algorithmList);
+
+        return `
+        <div class="input-group vstack mb-3">
+            <label style="min-width: 134.4px;" class="input-group-text rounded hstack gap-2">
+                <iconify-icon icon="fluent:math-symbols-24-filled" width="25" height="25"></iconify-icon>
+                Color Algorithms
+                <div class="help-text-icon">Select coloring algoritms that will be used to automaticly judge an astrological event to be good, bad or somewhere in between. The colors can range from red to white to green.</div>
+            </label>
+
+            <div class="form-control d-flex flex-wrap gap-2 rounded" style="width: fit-content;">
+                ${algorithmListHtml}
+            </div>
+        </div>
+    `;
+    }
+}
+
+class EventsSelector {
+    // Class properties
+    ElementID = "";
+    AllowedParentCheckboxes = [];
+    DefaultSelectedTags = [];
+    ApiDataStorageKey = "AllEventDataGroupedByTag";
+
+    // Constructor to initialize the EventsSelector object
+    constructor(elementId, allowedParentCheckboxes, defaultSelectedTags = []) {
+        this.ElementID = elementId;
+        this.AllowedParentCheckboxes = allowedParentCheckboxes;
+        this.DefaultSelectedTags = defaultSelectedTags;
+        this.initializeMainBody();
+    }
+
+    // Method to initialize the main body of the page header
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Fetch data from API or local storage
+        const data = await this.fetchDataFromApiOrStorage();
+
+        // Filter the data to only include the specified parent checkboxes
+        const filteredData = {};
+        Object.keys(data.GetAllEventDataGroupedByTag).forEach((tag) => {
+            if (this.AllowedParentCheckboxes.includes(tag)) {
+                filteredData[tag] = data.GetAllEventDataGroupedByTag[tag];
+            }
+        });
+
+        // Generate HTML and inject it into the element
+        const htmlString = this.convertDataToHtml({ GetAllEventDataGroupedByTag: filteredData });
+        $(`#${this.ElementID}`).html(htmlString);
+
+        // Set default selected tags
+        this.setDefaultSelectedTags();
+
+        // Attach event handlers to checkboxes
+        this.attachEventHandlers();
+    }
+
+    // Fetch data from API or local storage
+    async fetchDataFromApiOrStorage() {
+        const storedData = localStorage.getItem(this.ApiDataStorageKey);
+        if (storedData) {
+            try {
+                const data = JSON.parse(storedData);
+                if (data.Status === "Pass") {
+                    return data.Payload;
+                } else {
+                    localStorage.removeItem(this.ApiDataStorageKey);
+                }
+            } catch (error) {
+                console.error("Error parsing stored data:", error);
+                localStorage.removeItem(this.ApiDataStorageKey);
+            }
+        }
+
+        try {
+            const response = await fetch(`${VedAstro.ApiDomain}/Calculate/GetAllEventDataGroupedByTag`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.Status !== 'Pass') {
+                throw new Error('Failed to retrieve data. Status is not "Pass".');
+            }
+            localStorage.setItem(this.ApiDataStorageKey, JSON.stringify(data));
+            return data.Payload;
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            return [];
+        }
+    }
+
+    // Convert data to HTML
+    convertDataToHtml(data) {
+        let generatedHtml = "";
+        let parentCheckboxCount = 0;
+        let columnHtmlLeft = "";
+        let columnHtmlRight = "";
+
+        const totalParentCheckboxes = this.AllowedParentCheckboxes.length;
+        const middleIndex = Math.ceil(totalParentCheckboxes / 2);
+
+        this.AllowedParentCheckboxes.forEach((tag, index) => {
+            const events = data.GetAllEventDataGroupedByTag[tag];
+
+            if (events) {
+                // Generate HTML for parent checkbox
+                const parentCheckboxHtml = `
+            <div style="width: 254.9px;" class="form-check vstack gap-2">
+                <div class="hstack gap-2">
+                    <input value="" id="checkbox_${tag}" style="width: 40px; height: 28px;" class="form-check-input parent-checkbox" type="checkbox">
+                    <label class="form-check-label d-flex gap-2 w-100" for="checkbox_${tag}">
+                        <div class="" style="">
+                            <iconify-icon icon="${this.getIconBasedOnTagName(tag)}" width="25" height="25"></iconify-icon>
+                        </div>
+                        ${CommonTools.CamelPascalCaseToSpaced(tag)}
+
+                        <!-- Button to toggle visibility of child checkboxes -->
+                        <button class="ms-auto me-3 toggle-child-checkboxes" style="cursor: pointer; float: right; opacity: 1; border: none; background: none; padding: 0;">
+                            <iconify-icon class="show-child-button" icon="material-symbols:expand-circle-down-rounded" width="22" height="22"></iconify-icon>
+                            <iconify-icon class="hide-child-button" style="display:none;" icon="material-symbols:expand-circle-up-rounded" width="22" height="22"></iconify-icon>
+                        </button>
+                    </label>
+                </div>
+                <div style="display:none; margin-left: -12px; font-size: 14px;" class="child-checkboxes">
+                    ${events.map((event) => `
+                        <div class="form-check">
+                            <input class="form-check-input child-checkbox" type="checkbox" value="" id="checkbox_${event.Name}">
+                            <label class="form-check-label" for="checkbox_${event.Name}" title="${event.Description}">${CommonTools.CamelPascalCaseToSpaced(event.Name)}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+                // Add parent checkbox HTML to column HTML
+                if (index < middleIndex) {
+                    columnHtmlLeft += parentCheckboxHtml;
+                } else {
+                    columnHtmlRight += parentCheckboxHtml;
+                }
+            }
+        });
+
+        // Wrap column HTML in div
+        generatedHtml += `
+        <div style=" font-size: 15px; font-family: 'Lexend Deca';" class="d-md-flex justify-content-between">
+            <div class="align-self-start d-flex flex-column gap-1 mb-3">
+                ${columnHtmlLeft}
+            </div>
+            <div class="align-self-start d-flex flex-column gap-1 mb-3">
+                ${columnHtmlRight}
+            </div>
+        </div>
+    `;
+
+        // Add header to generated HTML
+        generatedHtml = `
+        <div>
+            <div class="fw-bold hstack gap-2 d-flex" style="max-width: 667px;"><h5 class="mt-2 me-auto">Event Type </h5></div>
+            <hr class="mt-1 mb-2">
+        </div>
+        ${generatedHtml}
+    `;
+
+        return generatedHtml;
+    }
+
+    //gets preset icons for event tags, if not specified give general event icon
+    getIconBasedOnTagName(eventTagName) {
+
+        const iconMap = {
+            "General": "fluent:people-team-20-regular",
+            "Agriculture": "material-symbols:potted-plant",
+            "Building": "carbon:construction",
+            "Astronomical": "ion:telescope-outline",
+            "BuyingSelling": "material-symbols:shopping-cart",
+            "Medical": "bxs:injection",
+            "Marriage": "fluent-emoji-high-contrast:heart-with-arrow",
+            "Travel": "mdi:plane-train",
+            "Studies": "tabler:school",
+            "Personal": "bi:person-fill",
+            "HairNailCutting": "game-icons:hair-strands"
+        };
+
+        return iconMap[eventTagName] || "material-symbols:event"; // default to general event icon if not found
+    }
+
+    // Attach event handlers to checkboxes
+    attachEventHandlers() {
+        const parentCheckboxes = $(`#${this.ElementID} .parent-checkbox`);
+        const childCheckboxes = $(`#${this.ElementID} .child-checkbox`);
+
+        // When a parent checkbox is clicked
+        parentCheckboxes.on('click', (e) => {
+            const parentCheckbox = $(e.target);
+            const childCheckboxesContainer = parentCheckbox.closest('.form-check').find('.child-checkboxes');
+            const childCheckboxes = childCheckboxesContainer.find('.child-checkbox');
+
+            if (parentCheckbox.is(':checked')) {
+                childCheckboxes.prop('checked', true);
+            } else {
+                childCheckboxes.prop('checked', false);
+            }
+        });
+
+        // When a child checkbox is clicked
+        childCheckboxes.on('click', (e) => {
+            const childCheckbox = $(e.target);
+            const parentCheckboxContainer = childCheckbox.closest('.form-check').parent().parent();
+            const parentCheckbox = parentCheckboxContainer.find('.parent-checkbox');
+            const childCheckboxesContainer = parentCheckboxContainer.find('.child-checkboxes');
+            const childCheckboxes = childCheckboxesContainer.find('.child-checkbox');
+
+            const checkedChildCheckboxes = childCheckboxes.filter(':checked');
+            if (checkedChildCheckboxes.length === 0) {
+                parentCheckbox.prop('checked', false).prop('indeterminate', false);
+            } else if (checkedChildCheckboxes.length === childCheckboxes.length) {
+                parentCheckbox.prop('checked', true).prop('indeterminate', false);
+            } else {
+                parentCheckbox.prop('checked', false).prop('indeterminate', true);
+            }
+        });
+
+        // Toggle child checkboxes visibility
+        const toggleChildCheckboxesButtons = $(`#${this.ElementID} .toggle-child-checkboxes`);
+        toggleChildCheckboxesButtons.on('click', (e) => {
+            const button = $(e.target).closest('.toggle-child-checkboxes'); // Traverse up to get the parent button
+            const childCheckboxesContainer = button.closest('.form-check').find('.child-checkboxes');
+            childCheckboxesContainer.toggle(); //show/hide
+
+            // Toggle show/hide button icons
+            const showChildButton = button.find('.show-child-button');
+            const hideChildButton = button.find('.hide-child-button');
+            if (childCheckboxesContainer.is(':visible')) {
+                showChildButton.hide();
+                hideChildButton.show();
+            } else {
+                showChildButton.show();
+                hideChildButton.hide();
+            }
+        });
+
+
+
+    }
+
+    // Method to set default selected tags
+    setDefaultSelectedTags() {
+        const parentCheckboxes = $(`#${this.ElementID} .parent-checkbox`);
+        parentCheckboxes.each((index, checkbox) => {
+            const tagName = checkbox.id.replace('checkbox_', '');
+            if (this.DefaultSelectedTags.includes(tagName)) {
+                $(checkbox).prop('checked', true);
+                const childCheckboxesContainer = $(checkbox).closest('.form-check').find('.child-checkboxes');
+                const childCheckboxes = childCheckboxesContainer.find('.child-checkbox');
+                childCheckboxes.prop('checked', true);
+            }
+        });
+    }
+
+    /**
+     * Returns a string of selected tag names or null if none are selected. EXP: General,Agriculture
+     */
+    getSelectedTagNamesAsString() {
+        const selectedParentCheckboxes = $(`#${this.ElementID} .parent-checkbox:checked`);
+        const selectedTagNames = [];
+
+        selectedParentCheckboxes.each((index, checkbox) => {
+            const tagName = checkbox.id.replace('checkbox_', '');
+            selectedTagNames.push(tagName);
+        });
+
+        if (selectedTagNames.length === 0) {
+            return null;
+        }
+
+        return selectedTagNames.join(',');
+
+    }
+}
+
+class DasaEventsSelector {
+    // Class properties
+    ElementID = "";
+    DefaultSelected = [];
+
+    // Constructor to initialize the PageHeader object
+    constructor(elementId, defaultSelected = []) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+
+        // Assign the default selected values
+        this.DefaultSelected = defaultSelected;
+
+        // Call the method to initialize the main body 
+        this.initializeMainBody();
+    }
+
+    // Method to initialize the main body 
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Generate the HTML for th and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        // Set default selected checkboxes
+        this.setDefaultSelected();
+
+        //initialize help text
+        HelpTextIcon.InitAllIn(`#${this.ElementID}`);
+
+    }
+
+    // Method to generate the HTML for the 
+    generateHtmlBody() {
+        // Return the HTML for the page header, including conditional blocks for different screen sizes
+        return `
+        <div class="input-group vstack mb-3">
+            <label style="min-width:134.4px;" class="input-group-text hstack gap-2 rounded">
+                <iconify-icon icon="lucide:calendar-range" width="25" height="25"></iconify-icon>
+                Events
+                <div class="help-text-icon">Type of events to calculate, more events takes longer</div>
+            </label>
+
+            <div id="DasaEventSelectionHolder" class="form-control d-flex flex-wrap gap-2 rounded" style="width: fit-content;">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD1">
+                    <label class="form-check-label" for="checkbox_PD1">Dasa</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD2">
+                    <label class="form-check-label" for="checkbox_PD1">Bhukti</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD3">
+                    <label class="form-check-label" for="checkbox_PD3">Antaram</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD4">
+                    <label class="form-check-label" for="checkbox_PD4">Sukshma</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD5">
+                    <label class="form-check-label" for="checkbox_PD5">Prana</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD6">
+                    <label class="form-check-label" for="checkbox_PD6">Avi Prana</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_PD7">
+                    <label class="form-check-label" for="checkbox_PD7">Viprana</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_AshtakvargaGochara">
+                    <label class="form-check-label" for="checkbox_AshtakvargaGochara">Ashtakvarga Gochara</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="" id="checkbox_Gochara">
+                    <label class="form-check-label" for="checkbox_Gochara">Gochara</label>
+                </div>
+            </div>
+        </div>
+    `;
+    }
+
+    setDefaultSelected() {
+        // Set default selected checkboxes
+        this.DefaultSelected.forEach((id) => {
+            $(`#${this.ElementID} #checkbox_${id}`).prop('checked', true);
+        });
+    }
+
+    getSelectedEventsAsString() {
+        // Select all checked checkboxes
+        const checkedCheckboxes = $(`#${this.ElementID} input[type="checkbox"]:checked`);
+
+        // If no checkboxes are checked, return null
+        if (checkedCheckboxes.length === 0) return null;
+
+        // Map the checked checkboxes to their values (split by '_' and take the second part)
+        const values = checkedCheckboxes.map((index, checkbox) => checkbox.id.split('_')[1]).get();
+
+        // Join the values into a string separated by commas
+        return values.join(',');
+    }
+}
+
+// supports dynamic 3 types of preset
+// - age1to10
+// - 3weeks, 3months, 3years, fulllife
+// - 1990-2000
+class TimeRangeSelector {
+    // Class properties
+    ElementID = "";
+    storageKey = "timeRangeSelector";
+    defaultPreset = "";
+    linkedPersonSelector = null;
+
+    // Constructor to initialize the PageHeader object
+    constructor(elementId, linkedPersonSelector, defaultPreset) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+        this.defaultPreset = defaultPreset;
+        this.linkedPersonSelector = linkedPersonSelector; //so that selected person's DOB can be used for time range 
+
+        // Call the method to initialize the body html
+        this.initializeMainBody();
+    }
+
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        //initialize help text
+        HelpTextIcon.InitAllIn(`#${this.ElementID}`);
+
+        // Initialize stored values
+        this.initStoredYearValues();
+        this.initStoredAgeValues();
+
+        // Set default preset if provided
+        if (this.defaultPreset) {
+            $(`#${this.ElementID} .time-range-select`).val(this.defaultPreset);
+            if (this.defaultPreset !== 'selectCustomYear' && this.defaultPreset !== 'selectCustomAge') {
+                $(`#${this.ElementID} .custom-time-range-holder`).hide();
+                $(`#${this.ElementID} .custom-age-range-holder`).hide();
+            } else if (this.defaultPreset === 'selectCustomYear') {
+                $(`#${this.ElementID} .custom-time-range-holder`).show();
+                $(`#${this.ElementID} .custom-age-range-holder`).hide();
+            } else if (this.defaultPreset === 'selectCustomAge') {
+                $(`#${this.ElementID} .custom-time-range-holder`).hide();
+                $(`#${this.ElementID} .custom-age-range-holder`).show();
+            }
+
+            //let others (days per pixel component) immediately know days between after default is selected
+            this.getDaysInRange().then(daysInRange => {
+                $(`#${this.ElementID}`).trigger('timeRangeChanged', [daysInRange]);
+            });
+        }
+
+        //attach event handlers
+        this.addDropdownEventListener();
+        this.addInputEventListeners();
+    }
+
+    //loads previously saved years if any else use deafults
+    initStoredYearValues() {
+        const storedValues = localStorage.getItem(this.storageKey);
+        if (storedValues) {
+            const values = JSON.parse(storedValues);
+            $(`#${this.ElementID} .start-year-input`).val(values.startYear);
+            $(`#${this.ElementID} .start-month-input`).val(values.startMonth);
+            $(`#${this.ElementID} .end-year-input`).val(values.endYear);
+            $(`#${this.ElementID} .end-month-input`).val(values.endMonth);
+        } else {
+            // Set current year as default
+            const currentYear = new Date().getFullYear();
+            $(`#${this.ElementID} .start-year-input`).val(currentYear);
+            $(`#${this.ElementID} .end-year-input`).val(currentYear);
+        }
+    }
+
+    //loads previously saved custom ages if any else use deafults
+    initStoredAgeValues() {
+        const storedValues = localStorage.getItem(this.storageKey + '_age');
+        if (storedValues) {
+            const values = JSON.parse(storedValues);
+            $(`#${this.ElementID} .start-age-input`).val(values.startAge);
+            $(`#${this.ElementID} .end-age-input`).val(values.endAge);
+        }
+        // Set age 10 to 45 as default
+        else {
+            $(`#${this.ElementID} .start-age-input`).val(10);
+            $(`#${this.ElementID} .end-age-input`).val(45);
+        }
+    }
+
+    //calculate the number of days between start date and end date also handles time range preset by using API
+    async getDaysInRange() {
+
+        //only continue of dates are valid 
+        if (!this.isValid()) { return 0; }
+
+        //show loading to user
+        CommonTools.ShowLoading();
+
+        let differenceInDays = 0;
+
+        //if user inputs manual time range, get dates and calculate difference
+        if ($(`#${this.ElementID} .time-range-select`).val() === 'selectCustomYear') {
+            const startYear = parseInt($(`#${this.ElementID} .start-year-input`).val());
+            const startMonth = parseInt($(`#${this.ElementID} .start-month-input`).val());
+            const endYear = parseInt($(`#${this.ElementID} .end-year-input`).val());
+            const endMonth = parseInt($(`#${this.ElementID} .end-month-input`).val());
+
+            // Create Date objects for start and end dates
+            const startDate = new Date(startYear, startMonth - 1, 1);
+            const endDate = new Date(endYear, endMonth - 1, this.getLastDayOfMonth(endYear, endMonth - 1));
+
+            // Calculate the difference in days
+            //the `+ 1` at the end of the calculation is to include the last day of the range in the count.
+            differenceInDays = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
+
+        }
+        //else user inputs using time range presets & custom age range also, use API to calculate range
+        else {
+            //get selected person's birth time URL for age preset computation
+            var birthTimeUrl = await this.getSelectedPersonBirthTimeUrl();
+
+            //this can be age preset & time preset
+            let selectedTimePreset = $(`#${this.ElementID} .time-range-select`).val();
+
+            //if user selects age range construct preset, exp age20to40
+            if (selectedTimePreset === 'selectCustomAge') {
+                const startAge = parseInt($(`#${this.ElementID} .start-age-input`).val());
+                const endAge = parseInt($(`#${this.ElementID} .end-age-input`).val());
+
+                //construct new age preset
+                selectedTimePreset = `age${startAge}to${endAge}`;
+            }
+
+            let userTimezoneString = this.getSystemOffset();
+
+            //call API via GET request
+            let callUrl = `${VedAstro.ApiDomain}/Calculate/DaysBetweenTimeRangePreset/${birthTimeUrl}TimePreset/${selectedTimePreset}/OutputTimezone/${userTimezoneString}`;
+            const response = await fetch(callUrl);
+
+            //extract and return the days in range value
+            const data = await response.json();
+            differenceInDays = parseFloat(data.Payload.DaysBetweenTimeRangePreset);
+        }
+
+        //hide loading
+        Swal.close();
+
+        return differenceInDays;
+
+    }
+
+    async getSelectedPersonBirthTimeUrl() {
+        //get full data of selected person
+        let selectedPerson = await this.linkedPersonSelector.GetSelectedPerson();
+
+        //if person not selected give empty time string
+        if (selectedPerson == null) { return "Location/Empty/Time/00:00/01/01/0001/+00:00/"; }
+
+        //get birth time of selected person (URL format)
+        var timeUrl = selectedPerson.BirthTime.ToUrl();
+
+        return timeUrl;
+    }
+
+    //check if the dates are valid & filled, else shows user msg, and returns false
+    isValid() {
+
+        const startYear = parseInt($(`#${this.ElementID} .start-year-input`).val());
+        const startMonth = parseInt($(`#${this.ElementID} .start-month-input`).val());
+        const endYear = parseInt($(`#${this.ElementID} .end-year-input`).val());
+        const endMonth = parseInt($(`#${this.ElementID} .end-month-input`).val());
+        const selectedValue = $(`#${this.ElementID} .time-range-select`).val();
+        const startAge = parseInt($(`#${this.ElementID} .start-age-input`).val());
+        const endAge = parseInt($(`#${this.ElementID} .end-age-input`).val());
+
+        //check custom year
+        if (selectedValue === 'selectCustomYear') {
+            //check if dates is not empty
+            if (isNaN(startYear) || isNaN(startMonth) || isNaN(endYear) || isNaN(endMonth)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Date is wrong sir! 📅',
+                    text: 'Please check  if year and month is correct'
+                });
+                return false;
+            }
+
+            // Check if years are not negative
+            if (startYear < 0 || endYear < 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Year cannot be negative! ',
+                    text: 'Please enter a valid year'
+                });
+                return false;
+            }
+
+            //check if start time is before end time
+            if (!(startYear < endYear || (startYear === endYear && startMonth <= endMonth))) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Dates are reversed! 🤪',
+                    text: 'Start date should be before end date'
+                });
+                return false;
+            }
+
+
+        }
+
+        //check custom age
+        if (selectedValue === 'selectCustomAge') {
+            // Check for valid age range
+            if (isNaN(startAge) || isNaN(endAge)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Age is wrong sir! ',
+                    text: 'Please check 🧐 if age is correct'
+                });
+                return false;
+            }
+
+            if (startAge < 0 || endAge < 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Age cannot be negative! 🧐',
+                    text: 'Please enter a valid age range'
+                });
+                return false;
+            }
+
+            if (startAge >= endAge) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Invalid age range! 🧐',
+                    text: 'Start age should be less than end age'
+                });
+                return false;
+            }
+
+        }
+
+        //checks has passed
+        return true;
+    }
+
+    getSelectedTimeRangeAsURLString() {
+        const selectedValue = $(`#${this.ElementID} .time-range-select`).val();
+
+        //if a custom range is selected, then it returns "Start/00:00/01/01/2024/End/00:00/31/12/2024/+08:00/"
+        //NOTE: time is always set to 00:00 and start date is always the 1st of the month & end date is always end of the month
+        if (selectedValue === 'selectCustomYear') {
+            const startYear = $(`#${this.ElementID} .start-year-input`).val();
+            const startMonth = $(`#${this.ElementID} .start-month-input`).val();
+            const endYear = $(`#${this.ElementID} .end-year-input`).val();
+            const endMonth = $(`#${this.ElementID} .end-month-input`).val();
+
+            // Store values in local storage
+            this.storeYearValues(startYear, startMonth, endYear, endMonth);
+
+            //get user's current timezone UTC offset (system time)
+            let offsetString = this.getSystemOffset();
+
+            return `Start/00:00/01/${startMonth}/${startYear}/End/00:00/${this.getLastDayOfMonth(endYear, endMonth - 1)}/${endMonth}/${endYear}/${offsetString}`;
+        }
+        //if custom age is selected then construct age present in correct format "age10to100"
+        else if (selectedValue === 'selectCustomAge') {
+            const startAge = $(`#${this.ElementID} .start-age-input`).val();
+            const endAge = $(`#${this.ElementID} .end-age-input`).val();
+
+            // Store values in local storage
+            this.storeAgeValues(startAge, endAge);
+
+            return `TimePreset/age${startAge}to${endAge}`;
+        } else
+        //if a preset is selected function returns "TimeRange/PresetValue"
+        {
+            return `TimePreset/${selectedValue}`;
+        }
+    }
+
+    storeYearValues(startYear, startMonth, endYear, endMonth) {
+
+        if (!this.isValid()) { return; } //only continue if valid 
+
+        const values = {
+            startYear,
+            startMonth,
+            endYear,
+            endMonth
+        };
+        localStorage.setItem(this.storageKey, JSON.stringify(values));
+    }
+
+    storeAgeValues(startAge, endAge) {
+
+        if (!this.isValid()) { return; } //only continue if valid 
+
+        const values = {
+            startAge,
+            endAge
+        };
+        localStorage.setItem(this.storageKey + '_age', JSON.stringify(values));
+    }
+
+    //offset nicely formatted exp:"+08:00"
+    getSystemOffset() {
+        const offset = new Date().getTimezoneOffset();
+        const offsetHours = Math.floor(Math.abs(offset) / 60);
+        const offsetMinutes = Math.abs(offset) % 60;
+        const offsetString = (offset < 0 ? '+' : '-') + String(offsetHours).padStart(2, '0') + ':' + String(offsetMinutes).padStart(2, '0');
+        return offsetString;
+    }
+
+    getLastDayOfMonth(year, month) {
+        return new Date(year, month + 1, 0).getDate();
+    }
+
+    // Method to generate the HTML for the page header
+    generateHtmlBody() {
+        // Return the HTML for the page header, including conditional blocks for different screen sizes
+        return `
+            <!-- PRESET SELECTOR -->
+            <div>
+                <label class="form-label">
+                    Time Range
+                    <div class="help-text-icon">Start and end time for chart</div>
+                </label>
+                <select class="form-control time-range-select" style="width: 254.9px;">
+                    <option style="font-weight: bold; color: #0d6efd;" value="selectCustomYear">Custom Date</option>
+                    <option value="1day">+/- 1 Day</option>
+                    <option value="1week">+/- 1 Week</option>
+                    <option value="1month">+/- 1 Month</option>
+                    <option value="2month">+/- 2 Month</option>
+                    <option value="3month">+/- 3 Months</option>
+                    <option value="6month">+/- 6 Months</option>
+                    <option value="1year">+/- 1 Year</option>
+                    <option value="3year">+/- 3 Year</option>
+                    <option value="5year">+/- 5 Year</option>
+                    <option value="10year">+/- 10 Year</option>
+                    <option style="font-weight: bold; color: #0d6efd;" value="selectCustomAge">Custom Age</option>
+                    <option value="age1to25">Age 1 to 35</option>
+                    <option value="age10to35">Age 10 to 35</option>
+                    <option value="age25to50">Age 25 to 50</option>
+                    <option value="age35to60">Age 35 to 60</option>
+                    <option value="age60to85">Age 60 to 85</option>
+                    <option value="age50to100">Age 50 to 100</option>
+                    <option style="font-weight: bold;" value="fulllife">Full Life</option>
+                </select>
+            </div>
+
+            <!-- CUSTOM TIME RANGE -->
+            <div class="custom-time-range-holder mt-3" style="display: none;">
+                <div class="input-group mb-2" style="width: 312px;">
+                    <label class="input-group-text" style="width: 60.1px;">Start</label>
+                    <input type="number" class="form-control start-year-input" pattern="\d{4}" title="Four digit year" required="">
+                    <span class="input-group-text">Month</span>
+                    <select class="form-select start-month-input">
+                        <option value="01" selected="">JAN</option>
+                        <option value="02">FEB</option>
+                        <option value="03">MAR</option>
+                        <option value="04">APR</option>
+                        <option value="05">MAY</option>
+                        <option value="06">JUN</option>
+                        <option value="07">JUL</option>
+                        <option value="08">AUG</option>
+                        <option value="09">SEP</option>
+                        <option value="10">OCT</option>
+                        <option value="11">NOV</option>
+                        <option value="12">DEC</option>
+                    </select>
+                </div>
+                <div class="input-group mb-3" style="width: 312px;">
+                    <label class="input-group-text" style="width: 60.1px">End</label>
+                    <input type="number" class="form-control end-year-input" pattern="\d{4}" title="Four digit year" required="">
+                    <span class="input-group-text">Month</span>
+                    <select class="form-select end-month-input">
+                        <option value="01">JAN</option>
+                        <option value="02">FEB</option>
+                        <option value="03">MAR</option>
+                        <option value="04">APR</option>
+                        <option value="05">MAY</option>
+                        <option value="06">JUN</option>
+                        <option value="07">JUL</option>
+                        <option value="08">AUG</option>
+                        <option value="09">SEP</option>
+                        <option value="10">OCT</option>
+                        <option value="11">NOV</option>
+                        <option value="12" selected="">DEC</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- CUSTOM AGE RANGE -->
+            <div class="custom-age-range-holder mt-3" style="display: none;">
+                <div class="input-group mb-2" style="width: 312px;">
+                    <label class="input-group-text" style="width: 92.1px;">From Age</label>
+                    <input type="number" class="form-control start-age-input" pattern="\d+" title="Age" required="">
+                    <span class="input-group-text">To</span>
+                    <input type="number" class="form-control end-age-input" pattern="\d+" title="Age" required="">
+                </div>
+            </div>
+
+        `;
+    }
+
+    // Add event listener to dropdown
+    addDropdownEventListener() {
+
+        //make custom date selector hide/show
+        $(`#${this.ElementID} .time-range-select`).on('change', (event) => {
+            var $parent = $(event.target).closest(`#${this.ElementID}`);
+            if ($(event.target).val() === 'selectCustomYear') {
+                $parent.find('.custom-time-range-holder').show();
+                $parent.find('.custom-age-range-holder').hide();
+            } else if ($(event.target).val() === 'selectCustomAge') {
+                $parent.find('.custom-time-range-holder').hide();
+                $parent.find('.custom-age-range-holder').show();
+            } else {
+                $parent.find('.custom-time-range-holder').hide();
+                $parent.find('.custom-age-range-holder').hide();
+            }
+
+            // let days per pixel component know that time range has changed
+            this.getDaysInRange().then(daysInRange => {
+                $(`#${this.ElementID}`).trigger('timeRangeChanged', [daysInRange]);
+            });
+        });
+    }
+
+    addInputEventListeners() {
+        $(`#${this.ElementID} .start-year-input, #${this.ElementID} .start-month-input, #${this.ElementID} .end-year-input, #${this.ElementID} .end-month-input, #${this.ElementID} .start-age-input, #${this.ElementID} .end-age-input`).on('change', (event) => {
+            const startYear = $(`#${this.ElementID} .start-year-input`).val();
+            const startMonth = $(`#${this.ElementID} .start-month-input`).val();
+            const endYear = $(`#${this.ElementID} .end-year-input`).val();
+            const endMonth = $(`#${this.ElementID} .end-month-input`).val();
+            const startAge = $(`#${this.ElementID} .start-age-input`).val();
+            const endAge = $(`#${this.ElementID} .end-age-input`).val();
+
+            if ($(event.target).hasClass('start-age-input') || $(event.target).hasClass('end-age-input')) {
+                this.storeAgeValues(startAge, endAge);
+            } else {
+                this.storeYearValues(startYear, startMonth, endYear, endMonth);
+            }
+
+            // let days per pixel component know that time range has changed
+            this.getDaysInRange().then(daysInRange => {
+                $(`#${this.ElementID}`).trigger('timeRangeChanged', [daysInRange]);
+            });
+        });
+    }
+
+}
+
+class DayPerPixelInput {
+    // Class properties
+    ElementID = "";
+    MaxWidthPx = 1000;
+
+    // Constructor to initialize the object
+    constructor(elementId) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+
+        // Call the method to initialize the main body
+        this.initializeMainBody();
+
+        // when time range component is updated, it triggers this to recalculate precision 
+        $(document).on('timeRangeChanged', (event, daysInRange) => {
+
+            let daysPerPixel = daysInRange / this.MaxWidthPx; //max 1000px width
+
+            daysPerPixel = Math.round(daysPerPixel * 100000) / 100000; //round to 3 decimal places
+
+            $(`#${this.ElementID} .precision-value-input`).val(daysPerPixel);
+        });
+    }
+
+    // Method to initialize the main body 
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        //initialize help text
+        HelpTextIcon.InitAllIn(`#${this.ElementID}`);
+    }
+
+    getValue() {
+        //gets value in input
+        let value = $(`#${this.ElementID} .precision-value-input`).val();
+        let floatValue = parseFloat(value);
+        if (isNaN(floatValue)) {
+            throw new Error(`Invalid input value: ${value}`);
+        }
+        return floatValue;
+    }
+
+    // Method to generate the HTML 
+    generateHtmlBody() {
+        return `
+        <div class="input-group mb-3">
+            <span class="input-group-text hstack gap-2">
+                <iconify-icon icon="lucide:microscope" width="25" height="25"></iconify-icon>
+                Precision
+                <div class="help-text-icon">
+                    The number of days in a pixel, more days in 1 pixel equals less precision. If the number is too low, the chart will take too long and will not generate. Change in small steps. For very high precision use Desktop App. Linked to time range, this number will auto update when time range is changed.
+                </div>
+            </span>
+            <input type="number" step="0.01" class="form-control precision-value-input">
+        </div>
+    `;
+    }
+
+}
+
+class IndianChart {
+    // Class properties
+    ElementID = "";
+    SelectedDivisionalCharts = [];
+    SelectedChartStyle = "";
+    TimeUrl = "";
+    Ayanamsa = "";
+    AllCharts = [
+        'RasiD1', 'HoraD2', 'DrekkanaD3', 'ChaturthamshaD4', 'SaptamshaD7', 'NavamshaD9', 'DashamamshaD10',
+        'DwadashamshaD12', 'ShodashamshaD16', 'VimshamshaD20', 'ChaturvimshamshaD24', 'BhamshaD27',
+        'TrimshamshaD30', 'KhavedamshaD40', 'AkshavedamshaD45', 'ShashtyamshaD60'
+    ];
+
+    // Constructor to initialize object
+    constructor(elementId, defaultChartStyle, defaultDivisionalCharts) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+        this.SelectedDivisionalCharts = defaultDivisionalCharts;
+        this.SelectedChartStyle = defaultChartStyle;
+
+        // Call the method to initialize the main body
+        this.initializeMainBody();
+    }
+
+    // Method to initialize the main body
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(await this.generateHtmlBody());
+
+        // Bind event listeners to the checkboxes and radio buttons
+        this.bindEventListeners();
+    }
+
+    async GenerateChart(generateArguments) {
+
+        //save generate data for later use
+        this.TimeUrl = generateArguments.TimeUrl;
+        this.Ayanamsa = generateArguments.Ayanamsa;
+
+        // Clear holder "all-charts-holder" div of previous charts
+        $(`#${this.ElementID} .all-charts-holder`).empty();
+
+        // Generate image element for each SelectedDivisionalCharts with its own src and inject into "all-charts-holder"
+        this.AllCharts.forEach((divisionalChartName) => {
+            if (this.SelectedDivisionalCharts.includes(divisionalChartName)) {
+                // Get src link for chart
+                let src = this.getChartUrl(divisionalChartName, this.SelectedChartStyle, this.TimeUrl, this.Ayanamsa);
+
+                // Inject into holder div "all-charts-holder"
+                $(`#${this.ElementID} .all-charts-holder`).append(`<img class="img-thumbnail" style="width: 352px;" src="${src}" />`);
+            }
+        });
+    }
+
+    // Given chart division name, generates API url in correct format
+    getChartUrl(chartDivisionName, chartStyle, timeUrl, ayanamsa) {
+        return `${VedAstro.ApiDomain}/Calculate/${chartStyle}IndianChart/${timeUrl}ChartType/${chartDivisionName}/Ayanamsa/${ayanamsa}`;
+    }
+
+    // Method to generate the HTML
+    async generateHtmlBody() {
+        // Return the HTML
+        return `
+            <div>
+                <div class="hstack" style="margin-bottom: -11px;">
+                    <h3 class="align-self-end m-0">
+                        <iconify-icon class="me-2" icon="twemoji:dotted-six-pointed-star" width="38" height="38"></iconify-icon>
+                        Charts
+                    </h3>
+                    <div style="" class="btn-group ms-auto align-self-end">
+                        <button style="height: 37.1px; width: fit-content;" class="btn btn-sm dropdown-toggle btn-primary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <iconify-icon icon="gala:settings" width="25" height="25"></iconify-icon>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end px-1" >
+                            <li>
+                                <div class="form-check">
+                                  <input class="form-check-input chartStyleRadio" type="radio" name="chartStyleRadio" id="chartStyle_South" value="South" ${this.SelectedChartStyle === 'South' ? 'checked' : ''}>
+                                  <label class="form-check-label" for="chartStyle_South">
+                                    South Indian
+                                  </label>
+                                </div>
+                                <div class="form-check">
+                                  <input class="form-check-input chartStyleRadio" type="radio" name="chartStyleRadio" id="chartStyle_North" value="North" ${this.SelectedChartStyle === 'North' ? 'checked' : ''}>
+                                  <label class="form-check-label" for="chartStyle_North">
+                                    North Indian
+                                  </label>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            ${this.generateCheckboxList()}
+                        </ul>
+                    </div>
+                </div>
+                <hr />
+                <div class="d-flex flex-wrap gap-2 all-charts-holder">
+                    
+                </div>
+            </div>
+        `;
+    }
+
+    generateCheckboxList() {
+        let html = '';
+
+        this.AllCharts.forEach((chart) => {
+            const isChecked = this.SelectedDivisionalCharts.includes(chart);
+            html += `
+            <li>
+                <div class="form-check hstack">
+                    <input style="width:22px; height:22px;" class="me-1 form-check-input divisional-chart-checkbox" type="checkbox" value="${chart}" id="checkbox_${chart}" ${isChecked ? 'checked' : ''}>
+                    <label class="pt-1 text-nowrap form-check-label" for="checkbox_${chart}">
+                        ${CommonTools.CamelPascalCaseToSpaced(chart)}
+                    </label>
+                </div>
+            </li>
+        `;
+        });
+
+        return html;
+    }
+
+    //event handlers to update chart when style or division settings is changed
+    bindEventListeners() {
+
+        //changes in division selection
+        $(`#${this.ElementID} .divisional-chart-checkbox`).on('change', (e) => {
+            const chartName = e.target.value;
+            if (e.target.checked) {
+                if (!this.SelectedDivisionalCharts.includes(chartName)) {
+                    this.SelectedDivisionalCharts.push(chartName);
+                }
+            } else {
+                this.SelectedDivisionalCharts = this.SelectedDivisionalCharts.filter((chart) => chart !== chartName);
+            }
+            // Clear holder "all-charts-holder" div of previous charts
+            $(`#${this.ElementID} .all-charts-holder`).empty();
+
+            // Generate image element for each SelectedDivisionalCharts with its own src and inject into "all-charts-holder"
+            this.AllCharts.forEach((divisionalChartName) => {
+                if (this.SelectedDivisionalCharts.includes(divisionalChartName)) {
+                    // Get src link for chart
+                    let src = this.getChartUrl(divisionalChartName, this.SelectedChartStyle, this.TimeUrl, this.Ayanamsa);
+
+                    // Inject into holder div "all-charts-holder"
+                    $(`#${this.ElementID} .all-charts-holder`).append(`<img class="img-thumbnail" style="width: 352px;" src="${src}" />`);
+                }
+            });
+        });
+
+        //change in style
+        $(`#${this.ElementID} .chartStyleRadio`).on('change', (e) => {
+            this.SelectedChartStyle = e.target.value;
+            // Clear holder "all-charts-holder" div of previous charts
+            $(`#${this.ElementID} .all-charts-holder`).empty();
+
+            // Generate image element for each SelectedDivisionalCharts with its own src and inject into "all-charts-holder"
+            this.AllCharts.forEach((divisionalChartName) => {
+                if (this.SelectedDivisionalCharts.includes(divisionalChartName)) {
+                    // Get src link for chart
+                    let src = this.getChartUrl(divisionalChartName, this.SelectedChartStyle, this.TimeUrl, this.Ayanamsa);
+
+                    // Inject into holder div "all-charts-holder"
+                    $(`#${this.ElementID} .all-charts-holder`).append(`<img class="img-thumbnail" style="width: 352px;" src="${src}" />`);
+                }
+            });
+        });
+    }
+}
+
+class AllAstroDataTable {
+    // Class properties
+    ElementID = "";
+    SelectedColumns = [];
+    ColumnsData = [];
+    availableColumns = [];
+    TimeUrl = "";
+    Ayanamsa = "";
+    IconName = "";
+    defaultColumns = [];
+
+    // Constructor to initialize the object
+    constructor(elementId, keyColumn, iconName, defaultColumns) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+        this.KeyColumn = keyColumn; //can Planet or House
+
+        this.IconName = iconName;
+        this.defaultColumns = defaultColumns; // Store the default columns for when reset
+
+        // Check if there's a previously saved selection in localStorage
+        const savedColumns = localStorage.getItem(`SelectedColumns_${this.ElementID}`);
+        if (savedColumns) {
+            this.SelectedColumns = JSON.parse(savedColumns);
+        } else {
+            this.SelectedColumns = [...defaultColumns]; //assign by value, not reference
+        }
+    }
+
+    // Method to initialize the main body
+    async GenerateTable(generateArguments, useCache = false) {
+
+        // Save generate data for later use
+        this.TimeUrl = generateArguments.TimeUrl;
+        this.Ayanamsa = generateArguments.Ayanamsa;
+
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Make API call to fetch planets data, only if when specified
+        if (!useCache) { await this.getAstroDataFromApi(); }
+
+        // Generate available columns
+        this.availableColumns = Object.keys(this.ColumnsData[0][Object.keys(this.ColumnsData[0])[0]]);
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(await this.generateHtmlTable());
+
+        // Bind event listeners to the checkboxes
+        this.bindEventListeners();
+    }
+
+    // Method to fetch planets data from API
+    async getAstroDataFromApi() {
+        try {
+            const response = await fetch(`${VedAstro.ApiDomain}/Calculate/All${this.KeyColumn}Data/${this.KeyColumn}Name/All/${this.TimeUrl}Ayanamsa/${this.Ayanamsa}`);
+            const data = await response.json();
+            this.ColumnsData = Object.values(data.Payload)[0];
+
+        } catch (error) {
+            console.error('Error fetching planets data:', error);
+        }
+    }
+
+    // Method to generate the HTML table
+    async generateHtmlTable() {
+        let tableHtml = `
+        <div>
+                <div class="hstack" style="margin-bottom: -11px;">
+                    <h3 class="align-self-end m-0">
+                        <iconify-icon class="me-2" icon="${this.IconName}" width="38" height="38"></iconify-icon>
+                        ${this.KeyColumn} Data
+                    </h3>
+                    <div class="btn-group ms-auto align-self-end">
+                        <button style="height: 37.1px; width: fit-content;" class="btn btn-sm dropdown-toggle btn-primary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <iconify-icon icon="gala:settings" width="25" height="25"></iconify-icon>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end ps-2 pe-1" data-bs-auto-close="false" >
+                            <li>
+                                <div class="hstack gap-2">
+                                    <input type="text" class="columnListSearchInput form-control ps-2" placeholder="Search...">
+                                    <button type="button" class="px-1 checked-column-reset-btn btn btn-primary d-flex flex-nowrap">
+                                        <span class="me-1 iconify" data-icon="ix:hard-reset" data-width="20" data-height="20"></span>
+                                        Reset
+                                    </button>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <div class="column-list-container">
+                                ${this.generateCheckboxList()}
+                            </div>
+                        </ul>
+                    </div>
+                </div>
+                <hr />
+
+      <div class="table-responsive-sm">
+        <table class="table table-striped table-hover table-bordered text-nowrap w-auto" style="border-radius: 10px;overflow: hidden;">
+          <thead class="table-dark">
+            <tr>
+              <th>Planet</th>
+    `;
+
+        // Dynamically generate table headers based on selected columns
+        this.SelectedColumns.forEach((column) => {
+            tableHtml += `<th class="text-wrap">${CommonTools.CamelPascalCaseToSpaced(column)}</th>`;
+        });
+
+        tableHtml += `
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+        this.ColumnsData.forEach((columnData) => {
+            const columnName = Object.keys(columnData)[0];
+            const planetInfo = columnData[columnName];
+
+            tableHtml += `
+        <tr>
+          <td>${columnName}</td>
+    `;
+
+            // Dynamically generate table data based on selected columns
+            //checks if the value is an object with a `Name` and `DegreesIn` property, and if it is,
+            //it concatenates these values into a string with the desired format.
+            //If the object has a different structure, it falls back to stringifying the object.
+            this.SelectedColumns.forEach((column) => {
+                let value = planetInfo[column];
+                if (Array.isArray(value)) {
+                    value = value.join(', ');
+                } else if (typeof value === 'object' && value !== null) {
+                    if (value.Name && value.DegreesIn) {
+                        value = `${value.Name} ${value.DegreesIn.DegreeMinuteSecond}`;
+                    }
+                    else if (value.DegreeMinuteSecond) {
+                        value = `${value.DegreeMinuteSecond}`;
+                    }
+                    //name only handle planet name
+                    else if (value.Name) {
+                        value = `${value.Name}`;
+                    }
+                    else {
+                        value = JSON.stringify(value);
+                    }
+                }
+                tableHtml += `<td>${value}</td>`;
+            });
+
+
+            tableHtml += `
+        </tr>
+      `;
+        });
+
+        tableHtml += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
+        return tableHtml;
+    }
+
+    generateCheckboxList() {
+        let checkedHtml = '';
+        let uncheckedHtml = '';
+
+        this.availableColumns.forEach((column) => {
+            const isChecked = this.SelectedColumns.includes(column);
+            const checkboxHtml = `
+            <li>
+                <div class="form-check hstack">
+                    <input style="width:22px; height:22px;" class="form-check-input column-checkbox me-1" type="checkbox" value="${column}" id="checkbox_${column}" ${isChecked ? 'checked' : ''}>
+                    <label class="pt-1 text-nowrap form-check-label" for="checkbox_${column}">
+                        ${CommonTools.CamelPascalCaseToSpaced(column)}
+                    </label>
+                </div>
+            </li>
+        `;
+
+            if (isChecked) {
+                checkedHtml += checkboxHtml;
+            } else {
+                uncheckedHtml += checkboxHtml;
+            }
+        });
+
+        return checkedHtml + `<li><hr class="dropdown-divider"></li>` + uncheckedHtml;
+    }
+
+    // Bind event listeners to the checkboxes and search input
+    bindEventListeners() {
+        // Bind event listener to column checkboxes
+        $(`#${this.ElementID} .column-checkbox`).on('change', (e) => {
+            const column = e.target.value;
+            if (e.target.checked) {
+                if (!this.SelectedColumns.includes(column)) {
+                    this.SelectedColumns.push(column);
+                }
+            } else {
+                this.SelectedColumns = this.SelectedColumns.filter((col) => col !== column);
+            }
+            // Save the updated selection to localStorage
+            localStorage.setItem(`SelectedColumns_${this.ElementID}`, JSON.stringify(this.SelectedColumns));
+
+            //generate table again but with previoulsy gotten data, since DOB has not changed
+            this.GenerateTable({ TimeUrl: this.TimeUrl, Ayanamsa: this.Ayanamsa }, true);
+        });
+
+        // do filter search on column names
+        $(`#${this.ElementID} .columnListSearchInput`).on('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const columnList = $(`#${this.ElementID} .column-list-container li`);
+
+            columnList.each((index, element) => {
+                const columnName = $(element).find('.form-check-label').text().toLowerCase();
+                if (columnName.includes(searchTerm)) {
+                    $(element).show();
+                } else {
+                    $(element).hide();
+                }
+            });
+        });
+
+        // focus will automatically go to the search input field,
+        // allowing the user to start typing immediately
+        $(`#${this.ElementID} .dropdown-toggle`).on('click', () => {
+            if (CommonTools.IsMobile()) { return; }//if on mobile then do not auto focus, because keyboard takes up screen
+            setTimeout(() => {
+                const searchInput = $(`#${this.ElementID} .columnListSearchInput`);
+                searchInput.focus();
+            }, 100); // add a small delay to ensure the dropdown is fully shown
+        });
+
+        // sort checked and unchecked column names for easier viewing
+        $(`#${this.ElementID} .dropdown-menu`).on('hidden.bs.dropdown', () => {
+            const columnList = $(`#${this.ElementID} .column-list-container`);
+            columnList.html(this.generateCheckboxList());
+        });
+
+        // when reset button is clicked, the `SelectedColumns` will be reset to the `defaultColumns` 
+        // provided in the constructor, and the checkbox list will be updated to reflect the reset.
+        $(`#${this.ElementID} .checked-column-reset-btn`).on('click', () => {
+            this.SelectedColumns = this.defaultColumns;
+            // Save the updated selection to localStorage
+            localStorage.setItem(`SelectedColumns_${this.ElementID}`, JSON.stringify(this.SelectedColumns));
+            // Generate table again but with previously gotten data, since DOB has not changed
+            this.GenerateTable({ TimeUrl: this.TimeUrl, Ayanamsa: this.Ayanamsa }, true);
+            // Update the checkbox list to reflect the reset
+            const columnList = $(`#${this.ElementID} .column-list-container`);
+            columnList.html(this.generateCheckboxList());
+        });
+
+    }
+}
+
+class EvensChartViewer {
+    // Class properties
+    ElementID = "";
+    CurrentZoomLevel = 100; //defaults to 100 on start
+    EventsChartInstance = null;
+
+    // Constructor to initialize the object
+    constructor(elementId) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+
+        // generate basic html butttons & place holder text
+        this.initializeMainBody();
+
+    }
+
+    // Method to initialize the main body
+    initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        // Add the class to the div
+        $(`#${this.ElementID}`).addClass("overflow-auto");
+
+        // Add the style attribute to the div
+        $(`#${this.ElementID}`).css("margin-top", "60.1px");
+
+        // attache handler for button clicks
+        this.bindEventListeners();
+    }
+
+    bindEventListeners() {
+
+        // expand button
+        $(`#${this.ElementID} .expand-view-button`).on('click', (e) => {
+
+            $('#DesktopSidebarHolder').toggleClass('d-md-block');
+
+            // Save value, so can zoom in and out as toggled
+            let _isMaximized = !$(`#${this.ElementID} .expand-view-button`).hasClass('maximized');
+            $(`#${this.ElementID} .expand-view-button`).toggleClass('maximized');
+
+            // Zoom in/out 4 times
+            const zoomMethod = _isMaximized ? this.OnClickZoomIn(4) : this.OnClickZoomOut(4);
+
+        });
+
+        // zoom in button
+        $(`#${this.ElementID} .zoom-in-button`).on('click', (e) => {
+            this.OnClickZoomIn();
+        });
+
+        // zoom out button
+        $(`#${this.ElementID} .zoom-out-button`).on('click', (e) => {
+            this.OnClickZoomOut();
+        });
+
+        // un/highlight check boxes based on houses or planets
+        $(`#${this.ElementID} .form-check-input`).on('change', (e) => {
+            const eventName = e.target.value;
+
+            //highlight
+            if (e.target.checked) {
+                this.EventsChartInstance.highlightByEventName(eventName);
+            }
+            //unhighlight
+            else {
+                this.EventsChartInstance.unhighlightByEventName(eventName);
+            }
+
+        });
+
+        // download svg button
+        $(`#${this.ElementID} .download-svg-button`).on('click', (e) => {
+
+            //show loading to user
+            CommonTools.ShowLoading();
+
+            const svgElement = document.getElementById("EventsChartSvgHolder").querySelector("svg");
+            const svgString = new XMLSerializer().serializeToString(svgElement);
+            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Chart-${this.selectedPersonId}-${this.timeRangeUrl.split("/")[1]}-${this.selectedEventTags.replace(/,/g, "-")}.svg`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            //hide loading after little delay for UX
+            setTimeout(() => { Swal.close(); }, 250);
+
+        });
+
+
+    }
+
+    async OnClickZoomIn(multiply = 1) {
+        //increment current zoom level
+        this.CurrentZoomLevel += (10 * multiply);
+
+        //apply new zoom
+        $(`#${this.ElementID} #EventsChartSvgHolder`).css('zoom', `${this.CurrentZoomLevel}%`);
+    }
+
+    async OnClickZoomOut(multiply = 1) {
+        //increment current zoom level
+        this.CurrentZoomLevel -= (10 * multiply);
+
+        //apply new zoom
+        $(`#${this.ElementID} #EventsChartSvgHolder`).css('zoom', `${this.CurrentZoomLevel}%`);
+    }
+
+    async GenerateChart(selectedPersonId, timeRangeUrl, daysPerPixel, selectedEventTags, selectedAlgorithms, selectedAyanamsa) {
+
+        //save for later use
+        this.selectedPersonId = selectedPersonId;
+        this.timeRangeUrl = timeRangeUrl;
+        this.daysPerPixel = daysPerPixel;
+        this.selectedEventTags = selectedEventTags;
+        this.selectedAlgorithms = selectedAlgorithms;
+        this.selectedAyanamsa = selectedAyanamsa;
+
+        //construct API call URL in correct format
+        let apiUrl = `${VedAstro.ApiDomain}/EventsChart/${selectedPersonId}/${timeRangeUrl}/${daysPerPixel}/${selectedEventTags}/${selectedAlgorithms}/Ayanamsa/${selectedAyanamsa}`;
+
+        //call the API and wait for the chart to be complete
+        const fetchApi = async () => {
+            try {
+                const response = await fetch(apiUrl);
+                const callStatus = response.headers.get('Call-Status');
+
+                //if chart is still being built
+                if (callStatus === 'Running') {
+                    await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5 seconds
+                    return fetchApi(); // make the call again
+                } else if (callStatus === 'Fail') {
+                    Swal.fire({ icon: 'error', title: 'Server could not make chart 🤕', html: 'An error report has been sent. 🤞Hopefully it will be fixed soon. Try <strong>again with different settings</strong>, maybe it\'ll work.', showConfirmButton: true });
+                    return null;
+                } else if (callStatus === 'Pass') {
+                    const svgString = await response.text();
+                    return svgString;
+                }
+            } catch (error) {
+                await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5 seconds
+                return fetchApi(); // make the call again
+            }
+        };
+
+        //get chart from api as SVG string
+        let svgString = await fetchApi();
+
+        //if chart did not make it end here
+        if (svgString == null) { return; }
+
+        // inject SVG string into element with id "EventsChartSvgHolder"
+        document.getElementById("EventsChartSvgHolder").innerHTML = svgString;
+
+        // get id of SVG element
+        let svgElement = document.getElementById("EventsChartSvgHolder").querySelector("svg");
+        let chartId = svgElement.id; //NOTE: unique ID of the chart made by server
+
+        //brings to life & makes available in window.EventsChartList
+        this.EventsChartInstance = new EventsChart(chartId);
+
+        //note : this makes chart appear normal in dark/normal mode
+        var value = window.DarkModeLibInstance.isActivated() ? "difference" : "normal";
+        $('#EventsChartSvgHolder').css('mix-blend-mode', value);
+
+        //let caller know all went well
+        console.log(`🤲 Amen! Chart Loaded : ID:${chartId}`);
+
+        //make chart holder with buttons visible
+        $('#EventsChartMainElement').show();
+
+        //hide placeholder text
+        $('#EventsChartPlaceHolderMessage').hide();
+
+        //zoom in to make chart clear
+        this.OnClickZoomIn(2);
+
+    }
+
+    // Method to generate the HTML
+    generateHtmlBody() {
+        return `
+            <hr>
+            <div id="EventsChartMainElement" class="vstack gap-1" style="display: none;">
+                <div class="hstack gap-2 mb-2">
+                    <button style="height: 37.1px; width: fit-content;" class="expand-view-button d-none d-md-block btn-sm btn-primary btn">
+                      <iconify-icon icon="icon-park-outline:full-screen-one" width="25" height="25"></iconify-icon>
+                    </button>
+                    <button style="height: 37.1px; width: fit-content;" class="zoom-in-button btn-sm btn-primary btn">
+                      <iconify-icon icon="iconamoon:zoom-in" width="25" height="25"></iconify-icon>
+                    </button>
+                    <button style="height: 37.1px; width: fit-content;" class="zoom-out-button btn-sm btn-primary btn">
+                      <iconify-icon icon="iconamoon:zoom-out" width="25" height="25"></iconify-icon>
+                    </button>
+                    <button style="height: 37.1px; width: fit-content;" class="btn-sm btn-primary btn">
+                      <iconify-icon icon="bx:hide" width="25" height="25"></iconify-icon>
+                    </button>
+                    <div style="" class="dropdown ">
+                        <button style=" height:37.1px; width: fit-content;" class="btn-sm  dropdown-toggle btn-primary btn " type="button" data-bs-toggle="dropdown" aria-expanded="false"><iconify-icon icon="fluent:highlight-16-filled" width="25" height="25"></iconify-icon></button>
+                        <ul style="cursor: pointer; width: 254.9px;" class="dropdown-menu ">
+                            <div class="d-flex flex-wrap gap-1">
+                                <div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 1" id="House-1">
+                                    <label class="form-check-label" for="House-1">House 1</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 2" id="House-2">
+                                    <label class="form-check-label" for="House-2">House 2</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 3" id="House-3">
+                                    <label class="form-check-label" for="House-3">House 3</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 4" id="House-4">
+                                    <label class="form-check-label" for="House-4">House 4</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 5" id="House-5">
+                                    <label class="form-check-label" for="House-5">House 5</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 6" id="House-6">
+                                    <label class="form-check-label" for="House-6">House 6</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 7" id="House-7">
+                                    <label class="form-check-label" for="House-7">House 7</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 8" id="House-8">
+                                    <label class="form-check-label" for="House-8">House 8</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 9" id="House-9">
+                                    <label class="form-check-label" for="House-9">House 9</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 10" id="House-10">
+                                    <label class="form-check-label" for="House-10">House 10</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 11" id="House-11">
+                                    <label class="form-check-label" for="House-11">House 11</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="House 12" id="House-12">
+                                    <label class="form-check-label" for="House-12">House 12</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Sun" id="Sun">
+                                    <label class="form-check-label" for="Sun">Sun</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Moon" id="Moon">
+                                    <label class="form-check-label" for="Moon">Moon</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Mars" id="Mars">
+                                    <label class="form-check-label" for="Mars">Mars</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Mercury" id="Mercury">
+                                    <label class="form-check-label" for="Mercury">Mercury</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Jupiter" id="Jupiter">
+                                    <label class="form-check-label" for="Jupiter">Jupiter</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Venus" id="Venus">
+                                    <label class="form-check-label" for="Venus">Venus</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Saturn" id="Saturn">
+                                    <label class="form-check-label" for="Saturn">Saturn</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Rahu" id="Rahu">
+                                    <label class="form-check-label" for="Rahu">Rahu</label>
+                                </div><div style="width: 97.3px; margin-left: 10px;" class="form-check">
+                                    <input style="width: 20px; height: 20px;" class="form-check-input" type="checkbox" value="Ketu" id="Ketu">
+                                    <label class="form-check-label" for="Ketu">Ketu</label>
+                                </div>
+                            </div>
+                        </ul>
+                    </div>
+                    <button style="height: 37.1px; width: fit-content;" class="download-svg-button btn-sm btn-primary btn">
+                      <iconify-icon icon="material-symbols:download" width="25" height="25"></iconify-icon>
+                    </button>
+                    <button style="height: 37.1px; width: fit-content;" class="btn-sm btn-primary btn">
+                      <iconify-icon icon="ri:bookmark-3-fill" width="25" height="25"></iconify-icon>
+                    </button>
+                    <button style="height: 37.1px; width: fit-content;" class="btn-sm btn-primary btn">
+                      <iconify-icon icon="ph:code-fill" width="25" height="25"></iconify-icon>
+                    </button>
+                    <div style="" class="dropdown">
+                      <button style="height: 37.1px; width: fit-content;" class="btn-sm dropdown-toggle hstack gap-2 iconButton btn-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <iconify-icon icon="gravity-ui:person" width="25" height="25"></iconify-icon>Person
+                      </button>
+                      <ul style="cursor: pointer; width: 100%;" class="dropdown-menu">
+                        <li>
+                          <a class="dropdown-item hstack gap-1">
+                            <div class="me-2 mt-1" style="">
+                              <iconify-icon icon="fluent:book-star-20-filled" width="25" height="25"></iconify-icon>
+                            </div>
+                            <span>Horoscope</span>
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item hstack gap-1">
+                            <div class="me-2 mt-1" style="">
+                              <iconify-icon icon="mdi:calendar-outline" width="25" height="25"></iconify-icon>
+                            </div>
+                            <span>Journal</span>
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
+                </div>
+
+                <div class="container-xxl" id="EventsChartSvgHolder" style="margin-left: -11px; "></div>
+            </div>
+
+            <!-- PLACEHOLDER TEXT -->
+            <div id="EventsChartPlaceHolderMessage">
+                <div class="d-flex justify-content-center">
+                    <span class="" style="color: #8f8f8f; font-size: 14px;">Chart will appear <strong>here</strong> after <strong>calculate</strong></span>
+                </div>
+            </div>
+            <hr>
+
+
+    `;
+    }
+}
+
+class HelpTextIcon {
+    // Class properties
+    Element = null;
+    HelpText = "Help Text Goes Here";
+
+    // Constructor to initialize the object
+    //* A string representing the ID or selector of the element: `new HelpTextIcon('#myId')` or`new HelpTextIcon('.myClass')`
+    //* A jQuery object: `new HelpTextIcon($('#myId'))`
+    //* A DOM element: `new HelpTextIcon(document.getElementById('myId'))`
+    constructor(element) {
+        // Check if the provided element is a jQuery object, a DOM element, or a string (id or selector)
+        if (typeof element === 'string') {
+            // If it's a string, try to select the element using jQuery
+            this.Element = $(element);
+        } else if (element instanceof jQuery) {
+            // If it's a jQuery object, use it directly
+            this.Element = element;
+        } else if (element instanceof Element) {
+            // If it's a DOM element, wrap it in a jQuery object
+            this.Element = $(element);
+        } else {
+            throw new Error('Invalid element provided to HelpTextIcon constructor');
+        }
+
+        // Check if the element exists
+        if (this.Element.length === 0) {
+            throw new Error('Element not found');
+        }
+
+        // Get the help text HTML from inside the element
+        this.HelpText = this.Element.html();
+
+        // Clear the HTML of the text
+        this.Element.empty();
+
+        // Add the style attribute to the element
+        this.Element.css("cursor", "help");
+        this.Element.css("opacity", "0.8");
+        this.Element.css("display", "inline-flex");
+        this.Element.css("vertical-align", "text-bottom");
+
+        // Inject the help icon
+        this.Element.html(`<iconify-icon icon="icon-park:help" width="18" height="18"></iconify-icon>`);
+
+        // Set up the tooltip
+        //- html for multi line
+        //- interactive for selecting text
+        tippy(this.Element[0], {
+            content: this.HelpText,
+            interactive: true,
+            allowHTML: true,
+            placement: "right",
+            trigger: "click"
+        });
+    }
+
+    // Given ID or selector of parent div, initialize help icon for each element with class "help-text-icon"
+    // HelpTextIcon.InitAllIn('#parentDivId');
+    static InitAllIn(parent) {
+        // Get all elements with class "help-text-icon" inside the parent div
+        const $parent = $(parent);
+        const $helpTextIcons = $parent.find('.help-text-icon');
+
+        // Initialize each help icon
+        $helpTextIcons.each((index, element) => {
+            // Create a new instance of HelpTextIcon for the current element
+            new HelpTextIcon(element);
+        });
+    }
+}
+
+class HoroscopePredictionTexts {
+    // Class properties
+    ElementID = "";
+    TimeUrl = "";
+    Ayanamsa = "";
+    HoroscopePredictions = [];
+
+    // Constructor to initialize the object
+    constructor(elementId) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+    }
+
+    // Method to initialize the main body 
+    async GenerateTable(generateArguments) {
+
+        // Save generate data for later use
+        this.TimeUrl = generateArguments.TimeUrl;
+        this.Ayanamsa = generateArguments.Ayanamsa;
+
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        //get data from API
+        this.HoroscopePredictions = await this.getHoroscopePredictionsFromApi();
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        // Add event listener to the search input
+        this.addSearchEventListener();
+    }
+
+    async getHoroscopePredictionsFromApi() {
+        const response = await fetch(`${VedAstro.ApiDomain}/Calculate/HoroscopePredictions/${this.TimeUrl}Ayanamsa/${this.Ayanamsa}`);
+        const data = await response.json();
+        return data.Payload;
+    }
+
+    generateHtmlBody() {
+        let html = `
+        <!-- PREDICTIONS HEADER -->
+        <div class="hstack" style="margin-bottom: -11px;">
+            <h3 class="align-self-end m-0">
+                <iconify-icon class="me-2" icon="noto:scroll" width="38" height="38"></iconify-icon>
+                Predictions
+            </h3>
+            <div class="ms-auto align-self-end" style="font-size: 22px;">Found: <strong id="prediction-count">${this.HoroscopePredictions.length}</strong></div>
+        </div>
+        <hr />
+        <div class="input-group mb-3">
+          <input type="text" id="prediction-search" class="form-control" placeholder="🔍 Search">
+        </div>
+        <div id="PredictionsHolder" class="overflow-auto" style="max-height:546px;">
+            ${this.generatePredictionCards()}
+        </div>
+    `;
+
+        return html;
+    }
+
+    generatePredictionCards() {
+        return this.HoroscopePredictions.map((prediction) => this.generatePredictionCard(prediction)).join('');
+    }
+
+    generatePredictionCard(prediction) {
+        return `
+        <div class="card mb-3 prediction-card">
+            <h4 class="card-header">${CommonTools.CamelPascalCaseToSpaced(prediction.Name)}</h5>
+            <div class="card-body">
+                <p class="card-text">${prediction.Description}</p>
+            </div>
+            <div class="card-footer text-body-secondary" style="font-size: 13px;">
+               ${this.generateRelatedBodiesHtml(prediction.RelatedBody)}
+            </div>
+        </div>
+    `;
+    }
+
+    generateRelatedBodiesHtml(relatedBody) {
+        let html = '';
+        if (relatedBody.Planets.length > 0) {
+            html += ` ✨${relatedBody.Planets.join(', ')}`;
+        }
+        if (relatedBody.Houses.length > 0) {
+            html += ` 🏠${relatedBody.Houses.join(', ')}`;
+        }
+        if (relatedBody.Zodiacs.length > 0) {
+            html += ` ☪️${relatedBody.Zodiacs.join(', ')}`;
+        }
+        return html;
+    }
+
+    addSearchEventListener() {
+        $('#prediction-search').on('input', () => {
+            const searchQuery = $('#prediction-search').val().toLowerCase();
+            const predictionCards = $('.prediction-card');
+
+            let visibleCount = 0;
+
+            predictionCards.each((index, card) => {
+                const cardText = $(card).text().toLowerCase();
+                if (cardText.includes(searchQuery)) {
+                    $(card).show();
+                    visibleCount++;
+                } else {
+                    $(card).hide();
+                }
+            });
+
+            $('#prediction-count').text(visibleCount);
+        });
+    }
+}
+
+class PersonListViewer {
+    // Class properties
+    ElementID = "";
+    personList = [];
+
+    // Constructor to initialize the object
+    constructor(elementId) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+
+        // Call the method to initialize the list html
+        this.initializeMainBody();
+    }
+
+    // Method to initialize the main body 
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // get person list from API or cache automatic
+        this.personList = await VedAstro.GetPersonList('private');
+
+        // Generate the HTML table of person and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        // Add event listener for search input
+        $('#person-search').on('input', () => {
+            this.filterTable();
+        });
+    }
+
+    getIconForGender(gender) {
+        if (gender === 'Female') {
+            return '🚺';
+        } else {
+            return '🚹';
+        }
+    }
+
+    // Generate the HTML table of person
+    generateHtmlBody() {
+        let tableBody = '';
+        this.personList.forEach(person => {
+            tableBody += `
+                <tr>
+                    <td>
+                        <div>${person.Name}</div>
+                        <div>${this.getIconForGender(person.Gender)} ${person.Gender}</div>
+                    </td>
+                    <td>
+                        <div>🕑 ${person.BirthTime.StdTime}</div>
+                        <div title="${person.BirthTime.Location.Name}">🌍 ${CommonTools.TruncateText(person.BirthTime.Location.Name, 43)}, ${person.BirthTime.Location.Latitude}, ${person.BirthTime.Location.Longitude}</div>
+                    </td>
+                    <td>
+                        <div class="dropdown ">
+                            <button style=" height:37.1px; width: fit-content;" class="btn-sm iconOnlyButton dropdown-toggle btn-outline-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" _bl_134="">
+                                <iconify-icon icon="bx:edit" width="25" height="25"></iconify-icon>
+                            </button>
+                            <ul style="cursor: pointer; width: 100%;" class="dropdown-menu"><li><a class="dropdown-item" href="/Contact">Contact Us</a></li>
+                                <li><a class="dropdown-item" href="/About">About</a></li>
+                                <li><a class="dropdown-item" href="https://www.youtube.com/@vedastro/videos" target="_blank">Video Guides</a></li>
+                                <li><a class="dropdown-item" href="/JoinOurFamily">Join Us</a></li>
+                                <li><a class="dropdown-item" href="Calculator/">Calculators</a></li>
+                                <li><a class="dropdown-item" href="Account/Person/List">Person List</a></li>
+                                <li><a class="dropdown-item" href="/TrainAIAstrologer">Train AI</a></li>
+                                <li><a class="dropdown-item" href="/Remedy">Remedy</a></li>
+                                <li><a class="dropdown-item" href="/Download">Download</a></li>
+                                <li><a class="dropdown-item" href="https://vedastroapi.azurewebsites.net/api">API Live Status</a></li>
+                                <li><a class="dropdown-item" href="TableGenerator">Table Generator</a></li>
+                                <li><a class="dropdown-item" href="/BodyTypes">Body Types</a></li>
+                                <li><a class="dropdown-item" href="Account/Person/Import">Import Person</a></li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        return `
+            <!-- HEADER -->
+            <div class="hstack" style="margin-bottom: -11px;">
+                <h3 class="align-self-end m-0">
+                    <iconify-icon class="me-2" icon="fluent-emoji-flat:floppy-disk" width="38" height="38"></iconify-icon>
+                    Saved Persons
+                </h3>
+            </div>
+            <hr />
+            <div class="input-group mb-3">
+              <input type="text" id="person-search" class="form-control" placeholder="🔍 Search">
+            </div>
+            <div class="table-responsive-sm">
+                <table class="table table-striped table-hover table-bordered text-nowrap" style="border-radius: 10px;overflow: hidden;">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Name</th>
+                            <th>Birth Time</th>
+                            <th> </th>
+                        </tr>
+                    </thead>
+                    <tbody id="person-table-body">
+                        ${tableBody}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Method to filter the table
+    filterTable() {
+        const searchInput = $('#person-search').val().toLowerCase();
+        const tableRows = $('#person-table-body tr');
+
+        tableRows.each((index, row) => {
+            const rowText = $(row).text().toLowerCase();
+            if (rowText.includes(searchInput)) {
+                $(row).show();
+            } else {
+                $(row).hide();
+            }
+        });
+    }
+}
+

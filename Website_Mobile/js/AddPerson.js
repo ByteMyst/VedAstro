@@ -1,19 +1,34 @@
 ﻿//-----------------------------> ADD PERSON PAGE
-updateHistory();
 
-new PageTopNavbar("PageTopNavbar");
-new DesktopSidebar("DesktopSidebarHolder");
 new PageHeader("PageHeader");
-new PageFooter("PageFooter");
-new InfoBox("InfoBox_EasyImport_AddPerson");
+//new InfoBox("InfoBox_EasyImport_AddPerson");
 new InfoBox("InfoBox_Private_AddPerson");
 new InfoBox("InfoBox_ForgotenTime_AddPerson");
-new IconButton("IconButton_Back_AddPerson");
+new IconButton("IconButton_Advanced");
 new IconButton("IconButton_Save_AddPerson");
-new TimeLocationInput("TimeLocationInput_AddPerson");
+let timeLocationInput = new TimeLocationInput("TimeLocationInput_AddPerson");
+new PersonListViewer("PersonListViewer");
 
-function OnClickBack_AddPerson() {
-    navigateToPreviousPage();
+//update name input on loose focus to not be all caps
+//make sure name is not fully capitalized, make it look nice
+$(document).ready(function () {
+    // Attach the function to the input element with id 'nameInput'
+    $('#NameInput_AddPerson').on('blur', function () {
+        // Get the current value of the input element
+        var currentValue = $(this).val();
+
+        // Convert the value to Pascal Case
+        var convertedValue = convertNameToPascalCase(currentValue);
+
+        // Update the input element with the converted value
+        $(this).val(convertedValue);
+    });
+});
+
+
+function OnClickAdvanced() {
+    smoothSlideToggle('#NotesInputHolder');
+    smoothSlideToggle(`#${timeLocationInput.TimezoneOffsetInputHolderID}`);
 }
 async function OnClickSave_AddPerson() {
 
@@ -50,8 +65,11 @@ async function OnClickSave_AddPerson() {
     // update new id, before saving into browser storage
     person.PersonId = newPersonId;
 
-    // after adding new person set person, as selected to make life easier for user (UX)
-    localStorage.setItem('selectedPerson', JSON.stringify(person));
+    // after adding new person, set person as selected to make life easier for user (UX)
+    // use localStorage key set by caller in URL if any,
+    // this allows each new person to be auto selected on a multi selector page 
+    const selectedPersonStorageKey = new URL(window.location.href).searchParams.get('SelectedPersonStorageKey');
+    if (selectedPersonStorageKey) { localStorage.setItem(selectedPersonStorageKey, JSON.stringify(person)); } 
 
     //clear cached person list (will cause person drop down to fetch new)
     PersonSelectorBox.ClearPersonListCache('private');
@@ -59,17 +77,20 @@ async function OnClickSave_AddPerson() {
     // hide loading
     Swal.close();
 
+    //play sound for better UX
+    playBakingDoneSound();
+
     // show done message
-    Swal.fire({
+    await Swal.fire({
         icon: 'success',
-        title: 'Done!',
+        title: 'Done ✅',
         text: 'Person added successfully!',
-        timer: 1500,
+        timer: 2000,
         showConfirmButton: false
     });
 
-    // wait a little and send user back to previous page (reloaded & not via "Back" functionality to avoid caching)
-    setTimeout(() => { navigateToPreviousPage(); }, 1500);
+    // send user back to previous page (reloaded & not via "Back" functionality to avoid caching)
+    navigateToPreviousPage();
 }
 
 // Add a person to the Vedastro API
@@ -77,16 +98,16 @@ async function OnClickSave_AddPerson() {
 async function AddPerson(person) {
 
     // convert to birth time to correct URL format
-    var timeUrl = person.BirthTime.ToUrl(); // sample: /Location/Singapore/Time/00:00/24/06/2024
+    var timeUrl = person.BirthTime.ToUrl(); // sample: Location/Singapore/Time/00:00/24/06/2024/
 
     //construct URL to save Person in API Server 
     const apiUrl = [
         `${VedAstro.ApiDomain}/Calculate/AddPerson/`,
         `OwnerId/${VedAstro.IsGuestUser() ? VedAstro.VisitorId : VedAstro.UserId}`, //if guest use visitor id, else use user id
-        `${timeUrl}`,
-        `/PersonName/${person.Name}`,
+        `/${timeUrl}`, // exp: Location/Singapore/Time/00:00/24/06/2024/
+        `PersonName/${person.Name}`, //NOTE: time URL has trailing, so we skip '/' before
         `/Gender/${person.Gender}`,
-        `/Notes/${JSON.stringify(person.Notes)}`
+        `/Notes/${toUrlSafe(person.Notes)}`
     ].join('');
 
     // Make the API call to add the person
@@ -99,31 +120,58 @@ async function AddPerson(person) {
     return newPersonId;
 }
 
+/**
+ * Converts text to URL-safe text.
+ *
+ * @param {string} text - The text to be converted.
+ * @returns {string} The URL-safe text.
+ */
+function toUrlSafe(text) {
+    return encodeURIComponent(text).replace(/%20/g, '+');
+}
+
 
 //brings together all the individual data for making person 
 //profile from page into 1 parsed Person instance object
-function getPersonInstanceFromInput() {
+async function getPersonInstanceFromInput() {
     const nameInput = document.getElementById("NameInput_AddPerson");
     const genderInput = document.getElementById("GenderInput_AddPerson");
-    const timeLocationInput = window.vedastro.TimeLocationInputInstances["TimeLocationInput_AddPerson"];
+    const notesInput = document.getElementById("NotesInput_AddPerson");
 
     //person ID is not filled, so Server can intelligently generate one
     const person = new Person({
         PersonId: "",
         Name: nameInput.value,
-        Notes: "",
-        BirthTime: timeLocationInput.getTimeJson(),
+        Notes: notesInput.value,
+        BirthTime: await timeLocationInput.getTimeJson(),
         Gender: genderInput.value,
-        OwnerId: "",
+        OwnerId: "", //not needed here since added later when making API call
         LifeEventList: []
     });
 
     return person;
 }
 
+/**
+ * Converts a name given in all caps to Pascal Case, but not initials.
+ * @param {string} name - The name to be converted.
+ * @returns {string} The converted name.
+ */
+function convertNameToPascalCase(name) {
+    return name.split(' ').map(word => {
+        // If the word is longer than 2 characters, it's probably not an initial
+        if (word.length > 2) {
+            // Convert the first character to uppercase and the rest to lowercase
+            return word.charAt(0) + word.slice(1).toLowerCase();
+        } else {
+            // Leave the word as it is (all uppercase)
+            return word;
+        }
+    }).join(' ');
+}
+
 async function isValidationPassed_AddPerson() {
     // Prepare view components for checking
-    var timeInput = window.vedastro.TimeLocationInputInstances["TimeLocationInput_AddPerson"];
     const nameInput = document.getElementById("NameInput_AddPerson");
     const genderInput = document.getElementById("GenderInput_AddPerson");
 
@@ -149,7 +197,7 @@ async function isValidationPassed_AddPerson() {
 
 
     // TEST 3: Time & Location
-    const isValidTime = await timeInput.isValid();
+    const isValidTime = await timeLocationInput.isValid();
     if (!isValidTime) {
         await Swal.fire({
             icon: 'error',
@@ -160,7 +208,7 @@ async function isValidationPassed_AddPerson() {
     }
 
     // TEST 4: Check if user is sleeping by letting time be set as current year and date and month
-    const tempTime = await timeInput.getDateTimeOffset();
+    const tempTime = await timeLocationInput.getDateTimeOffset();
     const thisYear = tempTime.year === new Date().getFullYear();
     const thisMonth = tempTime.month === new Date().getMonth();
     const thisDate = tempTime.date === new Date().getDate();

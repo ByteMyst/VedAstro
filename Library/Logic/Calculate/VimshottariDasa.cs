@@ -116,7 +116,7 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Gets the relationship between a mojor period planet and minor period planet based solely on relationship between
+        /// Gets the relationship between a major period planet and minor period planet based solely on relationship between
         /// the planets and nothing to do with the signs yet
         /// based on cyclic relationship between planets
         /// </summary>
@@ -124,7 +124,7 @@ namespace VedAstro.Library
         {
             //------ Code Poetry ------
             // lets take a moment to appreciate this piece of code
-            // it represents mathematically the nueral patern inside the human brain
+            // it represents mathematically the neural pattern inside the human brain
             // what the brain once did, is now done below
             //-------------------------
 
@@ -762,12 +762,12 @@ namespace VedAstro.Library
             //get time traversed in birth dasa 
             var timeTraversedInDasa = YearsTraversedInBirthDasa(moonConstellation, birthTime);
 
-            //NOTE: variable number of days per year here dynamically set for BV. RAMAN ayanamsa only
-           // if (Calculate.Ayanamsa == (int)Ayanamsa.RAMAN) { Calculate.SolarYearTimeSpan = 360; }
-            if (Calculate.Ayanamsa == (int)Ayanamsa.KRISHNAMURTI) 
-            { 
-                Calculate.SolarYearTimeSpan = 365.2564; 
-            } //CPJ 
+            //NOTE: Based on Ayanamsa the number of days in a year vary as per the astrologer's preference
+            //BV Raman uses 360, same as Parasara
+            if (Calculate.Ayanamsa == (int)Ayanamsa.RAMAN) { Calculate.SolarYearTimeSpan = 360; }
+            
+            //KP uses 365.2564 as set in his book
+            if (Calculate.Ayanamsa == (int)Ayanamsa.KRISHNAMURTI) { Calculate.SolarYearTimeSpan = 365.2564; }
 
             //get time from birth to current time 
             var timeBetween = currentTime.Subtract(birthTime).TotalDays / Calculate.SolarYearTimeSpan;

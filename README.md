@@ -9,7 +9,7 @@
 
 [![Ko-fi](https://img.shields.io/static/v1?style=for-the-badge&message=Ko-fi&color=FF5E5B&logo=Ko-fi&logoColor=FFFFFF&label=)](https://ko-fi.com/vedastro)
 [![Patreon](https://img.shields.io/static/v1?style=for-the-badge&message=Patreon&color=FF424D&logo=Patreon&logoColor=FFFFFF&label=)](https://www.patreon.com/vedastro)
-[![Slack](https://img.shields.io/static/v1?style=for-the-badge&message=Slack&color=4A154B&logo=Slack&logoColor=FFFFFF&label=)](https://join.slack.com/t/vedastro/shared_invite/zt-1rqkyn0vm-A7YncrN4PFPolVxCEBA37Q)
+[![Slack](https://img.shields.io/static/v1?style=for-the-badge&message=Slack&color=4A154B&logo=Slack&logoColor=FFFFFF&label=)](https://join.slack.com/t/vedastro/shared_invite/zt-1u7pdqjky-hrJZ7e3_vM2dZOmVY8FeHA)
 [![Facebook](https://img.shields.io/badge/Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white)](https://www.facebook.com/vedastro.org)
 [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/_VedAstro)
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@vedastro)
@@ -40,7 +40,7 @@
 [![.NET](https://img.shields.io/static/v1?style=for-the-badge&message=.NET&color=512BD4&logo=.NET&logoColor=FFFFFF&label=)](https://www.nuget.org/packages/VedAstro.Library) [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://pypi.org/project/VedAstro/)  [![Docker](https://img.shields.io/static/v1?style=for-the-badge&message=Docker&color=2496ED&logo=Docker&logoColor=FFFFFF&label=)](https://hub.docker.com/r/vedastro/api)
 
 # 🆓 100% Open Source
-As the sage [Parashara](https://en.wikipedia.org/wiki/Parashara) imparted the wisdom of the stars freely, unbound by wealth or claim, so too does VedAstro, a gift unencumbered by price or title.
+The sage **`Parashara taught everybody`** the ways of astrology without asking money, as such VedAstro does the same.
 
 ![OpenSourceCode](https://vedastro.org/images/open-source-code-sample.png)
 
@@ -271,7 +271,7 @@ We're always looking for somebody to **[improve code.](https://vedastro.org/Join
 # 🙋‍♂️ Come say "Hi", we don't bite!
 We discuss & share ideas on astrology and computation. And ways you can integrate VedAstro into your own project.
 <!-- SLACK JOIN IMAGE -->
-[![image](https://user-images.githubusercontent.com/43817262/227275627-609ceb21-025a-4902-b552-6e12f62f2f9d.png)](https://join.slack.com/t/vedastro/shared_invite/zt-1rqkyn0vm-A7YncrN4PFPolVxCEBA37Q)
+[![image](https://user-images.githubusercontent.com/43817262/227275627-609ceb21-025a-4902-b552-6e12f62f2f9d.png)](https://join.slack.com/t/vedastro/shared_invite/zt-1u7pdqjky-hrJZ7e3_vM2dZOmVY8FeHA)
 
 
 # ⚙️ Project Structure
@@ -295,7 +295,7 @@ Hard coded event data like name is stored in XML file.
 A copy of the event name is stored as Enum to link
 Calculator Methods with data from XML.
 These static methods are the logic to check
-if an event occured. No astro calculation done at this stage.
+if an event occurred. No astro calculation done at this stage.
 This is the linking process of the logic and data.
 
                       -------+
@@ -323,7 +323,7 @@ generated from a start time & end time (inputed at runtime).
 An Event is created if IsOccuring is true.
 This's a merger of Time and EventData to create an
 Event at a specific time. This Event is then used
-throughout the progam.
+throughout the program.
 
 
 
@@ -406,7 +406,7 @@ Shows only clean & nice html index for bots from best known SEs
 
 ## Stop 404 error
 for direct access Blazor page via static storage without 404 error
-since no page acctually exists at page url, blazor takes url and runs the page as app
+since no page actually exists at page url, blazor takes url and runs the page as app
 using rule engine this is possible
 rules also make sure not to redirect file & api access only page access
 - not begins with "/api/"
@@ -466,7 +466,7 @@ So as not to waste time, the API route has been decided since it has been proven
 "It must be noted that when passing through the first 10
 degrees of a sign, Mars and the Sun produce results."
 
-- It's intepreted that Vendha is an obstruction and not a reversal of the Gochara results
+- It's interpreted that Vendha is an obstruction and not a reversal of the Gochara results
   So as for now the design is that if a vedha is present than the result is simply nullified.
 
 - In Horoscope predictions methods have "time" & "person" arguments available, 

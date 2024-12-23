@@ -149,7 +149,7 @@ namespace VedAstro.Library
         /// 
         /// Note: format was heavily modified to squeeze as much data into 260 char URL server limit
         /// </summary>
-        public static async Task<EventsChart> FromUrl(string url)
+        public static async Task<EventsChart>  FromUrl(string url)
         {
             //NOTE: 2 possible types URL, with "TimePreset/1Week" or with "Start/.../End/..." 
             //split URL into data pieces
@@ -167,29 +167,21 @@ namespace VedAstro.Library
 
                 //use birth location for chart time (needs testing)
                 var person = Tools.GetPersonById(personId);
-                var location = person.GetBirthLocation();
+                //var location = person.GetBirthLocation();
+
+                //use timezone at birth location,
+                //NOTE: we ASSUME user is still at birth location!
+                var systemTimezone = person.BirthTimeZone;
 
                 //start and end time based on preset set
-                var systemTimezone = Tools.GetSystemTimezone();
-
-                var timeRange = EventChartTools.AutoCalculateTimeRange(person, parts[2], systemTimezone);
+                var timeRange = Calculate.AutoCalculateTimeRange(person.BirthTime, parts[2], systemTimezone);
                 var startTime = timeRange.start;
                 var endTime = timeRange.end;
 
                 //other data pieces
-                var daysPerPixel = double.Parse(parts[4]);
-                var eventTags = EventTagExtensions.FromString(parts[5]);
-                var summaryOptions = ChartOptions.FromUrl(parts[6]);
-
-
-                //if custom ayanamsa specified
-                var isCustomAya = url.Contains(nameof(Ayanamsa)); //check if ayanamsa specified anywhere
-                if (isCustomAya)
-                {
-                    var ayaRaw = $"{parts[^2]}/{parts[^1]}"; //get last since that will be ayanamsa in text or number int
-                    var enumFromUrl = Tools.EnumFromUrl(ayaRaw);
-                    Calculate.Ayanamsa = (int)enumFromUrl;
-                }
+                var daysPerPixel = double.Parse(parts[3]);
+                var eventTags = EventTagExtensions.FromString(parts[4]);
+                var summaryOptions = ChartOptions.FromUrl(parts[5]);
 
 
                 //a new chart is born
@@ -223,16 +215,6 @@ namespace VedAstro.Library
                 var daysPerPixel = double.Parse(parts[12]);
                 var eventTags = EventTagExtensions.FromString(parts[13]);
                 var summaryOptions = ChartOptions.FromUrl(parts[14]);
-
-                //if custom ayanamsa specified
-                var isCustomAya = url.Contains(nameof(Ayanamsa)); //check if ayanamsa specified anywhere
-                if (isCustomAya)
-                {
-                    var ayaRaw = $"{parts[^2]}/{parts[^1]}"; //get last since that will be ayanamsa in text or number int
-                    var enumFromUrl = Tools.EnumFromUrl(ayaRaw);
-                    Calculate.Ayanamsa = (int)enumFromUrl;
-                }
-
 
                 //a new chart is born
                 var newChartId = Tools.GenerateId();
@@ -280,13 +262,11 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// calculates the precision of the events to fit inside 1000px width
+        /// calculates the precision of the events to fit inside width
         /// </summary>
         public static double GetDayPerPixel(TimeRange timeRange, int maxWidth)
         {
-            var daysPerPixel = Math.Round(timeRange.daysBetween / maxWidth, 3); //small val = higher precision
-            //var daysPerPixel = Math.Round(yearsBetween * 0.4, 3); //small val = higher precision
-            //daysPerPixel = daysPerPixel < 1 ? 1 : daysPerPixel; // minimum 1 day per px
+            var daysPerPixel = Math.Round(timeRange.DaysBetween / maxWidth, 3); //small val = higher precision
 
             return daysPerPixel;
         }

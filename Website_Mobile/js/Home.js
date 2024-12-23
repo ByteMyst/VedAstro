@@ -1,10 +1,5 @@
 ﻿updateHistory();
 
-new PageTopNavbar("PageTopNavbar");
-new DesktopSidebar("DesktopSidebarHolder");
-new PageFooter("PageFooter");
-
-
 
 //on each load of the page, shuffle the quick links so user can see more
 shuffleChildren('#QuickLinksHolder');

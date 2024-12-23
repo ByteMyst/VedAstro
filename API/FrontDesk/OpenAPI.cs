@@ -323,6 +323,8 @@ namespace API
         /// </summary>
         public static string ParseAndGetFormat(string fullParamString)
         {
+            //handle no parameter API calls
+            if (fullParamString == null) { return ""; }
             try
             {
                 //if url contains word "ayanamsa" than process it
@@ -529,7 +531,15 @@ namespace API
                             //execute param parser
                             parsedParam = parsedParamInstance.Invoke(null, new object[] { extractedUrl }); //pass in extracted URL
                         }
+                        //TimeSpan
+                        else if (parameterType == typeof(TimeSpan))
+                        {
+                            //get the parser
+                            parsedParamInstance = typeof(Tools).GetMethod(nameof(Tools.TimeSpanFromUrl), BindingFlags.Public | BindingFlags.Static);
 
+                            //execute param parser
+                            parsedParam = parsedParamInstance.Invoke(null, new object[] { extractedUrl }); //pass in extracted URL
+                        }
                         //UNPREPARED TYPES
                         else
                             throw new Exception($"Type URL Parser not implemented! {parameterType.Name}");

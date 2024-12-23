@@ -72,6 +72,31 @@ namespace VedAstro.Library
 
         public const string BlobContainerName = "vedastro-site-data";
 
+        /// <summary>
+        /// takes a camel/pascal case string and returns a string with spaces between the words
+        /// </summary>
+        public static string CamelPascalCaseToSpaced(string camelCase)
+        {
+            // Create a StringBuilder to efficiently build the resulting string
+            var result = new StringBuilder();
+
+            // Iterate through each character in the input camel case string
+            foreach (var c in camelCase)
+            {
+                // Check if the character is an uppercase letter and we've already added at least one character to the result
+                if (char.IsUpper(c) && result.Length > 0)
+                {
+                    // Add a space before adding the character to separate words
+                    result.Append(' ');
+                }
+
+                // Add each character to the result, regardless of whether it's uppercase or lowercase
+                result.Append(c);
+            }
+
+            // Return the resulting string as a string
+            return result.ToString();
+        }
 
         /// <summary>
         /// Searches for person's image on BING and return one most probable as result
@@ -123,7 +148,6 @@ namespace VedAstro.Library
             return response;
         }
 
-
         /// <summary>
         /// SPECIAL METHOD made to allow files straight from blob to be sent to caller
         /// as fast as possible
@@ -141,7 +165,6 @@ namespace VedAstro.Library
             response.Body = fileBlobClient.OpenRead();
             return response;
         }
-
 
         /// <summary>
         /// Given an image in byte form, will save it as Person profile image in correct place with ID as file name
@@ -219,7 +242,6 @@ namespace VedAstro.Library
 
         }
 
-
         ///// <summary>
         ///// Gets any file from Azure blob storage in string form
         ///// </summary>
@@ -230,8 +252,6 @@ namespace VedAstro.Library
 
         //    return xmlFile;
         //}
-
-
 
         /// <summary>
         /// Saves XML file direct to Azure storage
@@ -244,8 +264,6 @@ namespace VedAstro.Library
             //upload modified list to storage
             await Tools.OverwriteBlobData(fileClient, dataXml);
         }
-
-
 
         /// <summary>
         /// check if a person's profile image already exist on server
@@ -351,8 +369,7 @@ namespace VedAstro.Library
 
             return response;
         }
-
-
+        
         public static string GetCallerId(string userId, string visitorId)
         {
             var IsLoggedIn = userId != "101";
@@ -893,8 +910,7 @@ namespace VedAstro.Library
             else
             {
                 //get coordinates for location (API)
-                WebResult<GeoLocation>? geoLocationResult = await Tools.AddressToGeoLocation(locationName);
-                geoLocation = geoLocationResult.Payload;
+                geoLocation = Calculate.AddressToGeoLocation(locationName);
             }
 
 
@@ -906,8 +922,7 @@ namespace VedAstro.Library
             var isPass = Time.TryParseStd(timeStr, out var parsedInputTime);
 
             //get timezone as text
-            var timezoneSTDOffsetResult = await Tools.GetTimezoneOffsetApi(geoLocation, parsedInputTime);
-            var timeZone = timezoneSTDOffsetResult.Payload;
+            var timeZone = await Calculate.GeoLocationToTimezone(geoLocation, parsedInputTime);
 
             //if failed to get timezone raise alarm
             if (string.IsNullOrEmpty(timeZone))
@@ -1052,8 +1067,23 @@ namespace VedAstro.Library
         public static List<Time> GetTimeSlicesOnBirthDay(Person person, double precisionInHours)
         {
             //start of day till end of day
-            var dayStart = new Time($"00:00 {person.BirthDateMonthYear} {person.BirthTimeZone}", person.GetBirthLocation());
-            var dayEnd = new Time($"23:59 {person.BirthDateMonthYear} {person.BirthTimeZone}", person.GetBirthLocation());
+            var dayStart = new Time($"00:00 {person.BirthDateMonthYear} {person.BirthTimeZoneString}", person.GetBirthLocation());
+            var dayEnd = new Time($"23:59 {person.BirthDateMonthYear} {person.BirthTimeZoneString}", person.GetBirthLocation());
+
+            var finalList = Time.GetTimeListFromRange(dayStart, dayEnd, precisionInHours);
+
+            return finalList;
+        }
+
+        /// <summary>
+        /// used for finding uncertain time in certain birthday
+        /// split a day into precision based slices of possible birth times
+        /// </summary>
+        public static List<Time> GetTimeSlicesOnBirthDay(Time birthTime, double precisionInHours)
+        {
+            //start of day till end of day
+            var dayStart = new Time($"00:00 {birthTime.DateMonthYear} {birthTime.TimeZoneString}", birthTime.GetGeoLocation());
+            var dayEnd = new Time($"23:59 {birthTime.DateMonthYear} {birthTime.TimeZoneString}", birthTime.GetGeoLocation());
 
             var finalList = Time.GetTimeListFromRange(dayStart, dayEnd, precisionInHours);
 
@@ -1338,8 +1368,6 @@ namespace VedAstro.Library
 
         }
 
-
-
         /// <summary>
         /// Extracts data from an Exception puts it in a nice XML
         /// </summary>
@@ -1533,10 +1561,12 @@ namespace VedAstro.Library
         public static double DaysToHours(double days) => days * 24.0;
 
         public static double WeeksToHours(double weeks) => weeks * 7.0 * 24.0;
+        
         public static double MonthsToHours(double months) => months * 30.44 * 24.0; // Approximate average number of days in a month
+        
         public static double YearsToHours(double years) => years * 365.25 * 24.0; // Approximate average number of days in a year (accounting for leap years)
+        
         public static double DecadesToHours(double decades) => decades * 10.0 * 365.25 * 24.0;
-
 
         public static double MinutesToHours(double minutes) => minutes / 60.0;
 
@@ -1643,7 +1673,6 @@ namespace VedAstro.Library
             return truncate.HasValue && truncate.Value < id.Length ? id.Substring(0, truncate.Value) : id;
         }
 
-
         /// <summary>
         /// Converts any list to comma separated string
         /// Note: calls ToString();
@@ -1677,9 +1706,6 @@ namespace VedAstro.Library
 
             return combinedNames;
         }
-
-
-
 
 
 
@@ -1787,75 +1813,6 @@ namespace VedAstro.Library
         /// </summary>
         public static TimeSpan GetSystemTimezone() => DateTimeOffset.Now.Offset;
 
-        /// <summary>
-        /// Given a place's name, using VedAstro API will get location
-        /// via HTTP request
-        /// </summary>
-        public static async Task<WebResult<GeoLocation>> AddressToGeoLocation(string address)
-        {
-
-            //CACHE MECHANISM
-            return await CacheManager.GetCache(new CacheKey("Tools.AddressToGeoLocation", address), addressToGeoLocation);
-
-            async Task<WebResult<GeoLocation>> addressToGeoLocation()
-            {
-                //get location data from VedAstro API
-                var allUrls = new URL(ThisAssembly.BranchName.Contains("beta")); //todo clean up
-                //exp : .../Calculate/AddressToGeoLocation/London
-                var url = allUrls.AddressToGeoLocationAPI + $"/Address/{address}";
-                var webResult = await Tools.ReadFromServerJsonReplyVedAstro(url);
-
-                //if fail to make call, end here
-                if (!webResult.IsPass) { return new WebResult<GeoLocation>(false, GeoLocation.Empty); }
-
-                //if success, get the reply data out
-                var rootJson = webResult.Payload;
-                var parsed = GeoLocation.FromJson(rootJson);
-
-                //return to caller pass
-                return new WebResult<GeoLocation>(true, parsed);
-
-            }
-
-        }
-
-        /// <summary>
-        /// Given a location & time, will use Google Timezone API
-        /// to get accurate time zone that was/is used
-        /// Must input valid geolocation 
-        /// NOTE:
-        /// - offset of timeAtLocation not important
-        /// - googleGeoLocationApiKey needed to work
-        /// </summary>
-        public static async Task<TimeSpan> GetTimezoneOffset(string locationName, DateTimeOffset timeAtLocation)
-        {
-            //get geo location first then call underlying method
-            var geoLocation = await GeoLocation.FromName(locationName);
-            return Tools.StringToTimezone(await GetTimezoneOffsetApi(geoLocation, timeAtLocation));
-        }
-
-        public static async Task<string> GetTimezoneOffsetString(string locationName, DateTime timeAtLocation)
-        {
-            //get geo location first then call underlying method
-            var geoLocation = await GeoLocation.FromName(locationName);
-            return await GetTimezoneOffsetApi(geoLocation, timeAtLocation);
-        }
-
-        public static async Task<string> GetTimezoneOffsetString(string location, string dateTime)
-        {
-            //get timezone from Google API
-            var lifeEvtTimeNoTimezone = DateTime.ParseExact(dateTime, Time.DateTimeFormatNoTimezone, null);
-            var timezone = await Tools.GetTimezoneOffsetString(location, lifeEvtTimeNoTimezone);
-
-            return timezone;
-
-            //get start time of life event and find the position of it in slices (same as now line)
-            //so that this life event line can be placed exactly on the report where it happened
-            //var lifeEvtTimeStr = $"{dateTime} {timezone}"; //add offset 0 only for parsing, not used by API to get timezone
-            //var lifeEvtTime = DateTimeOffset.ParseExact(lifeEvtTimeStr, Time.DateTimeFormat, null);
-
-            //return lifeEvtTime;
-        }
 
         /// <summary>
         /// backup approximate non historic timezone calculator
@@ -1890,8 +1847,6 @@ namespace VedAstro.Library
 
             return offset;
         }
-
-
 
         /// <summary>
         /// Given a location & time, will use live/local VedAstro API server to get data
@@ -2310,8 +2265,6 @@ namespace VedAstro.Library
             return new StringContent(dataString, encoding, mediaType);
         }
 
-
-
         /// <summary>
         /// Extracts data from an Exception puts it in a nice JSON
         /// </summary>
@@ -2526,6 +2479,21 @@ namespace VedAstro.Library
             var stringValue = parts[1];
 
             var intFromUrl = double.Parse(stringValue);
+
+            return intFromUrl;
+        }
+
+        /// <summary>
+        /// INPUT: /<param name>/+08:00
+        /// </summary>
+        public static TimeSpan TimeSpanFromUrl(string url)
+        {
+            string[] parts = url.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+            //string has simple structure ../<param name>/+08:00
+            var stringValue = parts[1];
+
+            var intFromUrl = Tools.StringToTimezone(stringValue);
 
             return intFromUrl;
         }
@@ -3026,7 +2994,7 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// 
+        /// converts time to string for storage in timezone DB cache
         /// </summary>
         public static string ToRowKey(this DateTimeOffset dateTimeOffset)
         {
@@ -3035,9 +3003,6 @@ namespace VedAstro.Library
 
             //convert all spaces to hyphens
             var cleaned1 = rawString.Replace('/', '-');
-
-            //remove all spaces into hypes
-            //var cleaned2 = cleaned1.Replace(' ', '-');
 
             return cleaned1;
         }
@@ -4443,7 +4408,7 @@ namespace VedAstro.Library
             SwissEph ephemeris = new SwissEph();
 
             // Convert DOB to ET
-            jul_day_ET = Calculate.TimeToEphemerisTime(time);
+            jul_day_ET = Calculate.TimeToJulianEphemerisTime(time);
 
             //Get planet long
             int ret_flag = ephemeris.swe_calc(jul_day_ET, swissPlanet, iflag, results, ref err_msg);

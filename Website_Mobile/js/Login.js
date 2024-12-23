@@ -1,17 +1,23 @@
 ﻿
-new PageTopNavbar("PageTopNavbar");
-new DesktopSidebar("DesktopSidebarHolder");
-new PageFooter("PageFooter");
 
 new InfoBox("InfoBox_Privacy_Login");
 new InfoBox("InfoBox_Storage_Login");
 new InfoBox("InfoBox_Secure_Login");
 
-
-
 //fill login helper text, to make user remember previous login method
 fillLoginHelperText();
 
+//due to some possibilities, the user can be in Login page even after login
+//so check every 20s and redirect user to Home page once logged in
+const intervalId = setInterval(() => {
+    // Check if the user is already logged in
+    if (!VedAstro.IsGuest()) {
+        // Clear the interval to prevent further checks
+        clearInterval(intervalId);
+        // Redirect the user to Home.html
+        window.location.href = './Home.html';
+    }
+}, 20000);
 
 //called by custom FB login button on page
 function onClickFacebookLoginButton() {
@@ -65,6 +71,9 @@ async function OnGoogleSignInSuccessHandler(afterLoginResponse) {
         //make note login method, to help user remember on return 🧠
         localStorage.setItem('PreviousLoginMethod', 'Google');
 
+        //clear cached person list (will cause person drop down to fetch new)
+        PersonSelectorBox.ClearPersonListCache('private');
+
         //tell user login was success
         await Swal.fire({ icon: 'success', title: 'Login Success ✅', timer: 1500, showConfirmButton: false });
 
@@ -101,6 +110,9 @@ function OnFacebookSignInHandler(afterLoginResponse) {
 
                 //make note login method, to help user remember on return 
                 localStorage.setItem('PreviousLoginMethod', 'Facebook');
+
+                //clear cached person list (will cause person drop down to fetch new)
+                PersonSelectorBox.ClearPersonListCache('private');
 
                 //tell user login was success
                 Swal.fire({ icon: 'success', title: 'Login Success ', timer: 1500, showConfirmButton: false })

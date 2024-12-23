@@ -30,6 +30,8 @@ using Microsoft.Extensions.Logging;
 using Azure.Storage.Blobs;
 using System.Net.Mime;
 using Microsoft.Extensions.Hosting;
+using System.Xml.Linq;
+using Microsoft.Bing.ImageSearch.Models;
 
 namespace VedAstro.Library
 {
@@ -91,6 +93,55 @@ namespace VedAstro.Library
 
 
         //----------------------------------------CORE CODE---------------------------------------------
+
+        #region BIRTH TIME FINDER
+
+        public static JObject FindBirthTimeByAnimal(Time possibleBirthTime, double precisionHours = 1)
+        {
+            //get list of possible birth time slice in the current birth day
+            var timeSlices = Tools.GetTimeSlicesOnBirthDay(possibleBirthTime, 1);
+
+            //get predictions for each slice and place in out going list  
+            var compiledObj = new JObject();
+            foreach (var timeSlice in timeSlices)
+            {
+                //get the animal prediction for possible birth time
+                var newBirthConstellation = Calculate.MoonConstellation(timeSlice).GetConstellationName();
+                var animal = Calculate.YoniKutaAnimalFromConstellation(newBirthConstellation);
+
+                //nicely packed 📦
+                var named = new JProperty(timeSlice.ToString(), animal.ToString());
+                compiledObj.Add(named);
+            }
+
+            //send data back to caller
+            return compiledObj;
+        }
+
+        public static JObject FindBirthTimeByRisingSign(Time possibleBirthTime, double precisionHours = 1)
+        {
+            //get list of possible birth time slice in the current birth day
+            var timeSlices = Tools.GetTimeSlicesOnBirthDay(possibleBirthTime, 1);
+
+            //get predictions for each slice and place in out going list  
+            var compiledObj = new JObject();
+            foreach (var timeSlice in timeSlices)
+            {
+                //get all predictions for person
+                var allPredictions = Tools.GetHoroscopePrediction(timeSlice);
+                //select only rising sign
+                var risingSignPredict = allPredictions.Where(x => x.FormattedName.Contains("Rising")).FirstOrDefault();
+
+                //nicely packed 📦
+                var named = new JProperty(timeSlice.ToString(), risingSignPredict.ToString());
+                compiledObj.Add(named);
+            }
+
+            //send data back to caller
+            return compiledObj;
+        }
+
+        #endregion
 
         #region PERSON
 
@@ -315,7 +366,7 @@ namespace VedAstro.Library
         /// Returns list of all API calls for fun, why not
         /// </summary>
         /// <returns></returns>
-        public static JArray List()
+        public static JArray ListAPICalls()
         {
             var allApiCalculatorsMethodInfo = Tools.GetAllApiCalculatorsMethodInfo();
 
@@ -350,7 +401,7 @@ namespace VedAstro.Library
             GeoLocation _AddressToGeoLocation()
             {
                 //inject api key from parent
-                var locationProvider = new Location();
+                var locationProvider = new LocationManager();
 
                 //do calculation using API and cache inteligently
                 var returnVal = locationProvider.AddressToGeoLocation(address).Result;
@@ -368,11 +419,11 @@ namespace VedAstro.Library
             async Task<List<GeoLocation>> _SearchLocation(string address)
             {
 
-                //return all searches with less than 4 chars as pre name typing search
-                if (address.Length < 4) { return new List<GeoLocation>(); }
+                //return all searches with less than 2 chars as pre name typing search
+                if (address.Length <= 2) { return new List<GeoLocation>(); }
 
                 //inject api key from parent
-                var locationProvider = new Location();
+                var locationProvider = new LocationManager();
 
                 //do calculation using API and cache inteligently
                 var returnVal = await locationProvider.SearchAddressToGeoLocation(address);
@@ -383,7 +434,7 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Given coordinates will convert to it's geo location equivelant
+        /// Given coordinates will convert to it's geo location equivalent
         /// http://localhost:7071/api/Calculate/CoordinatesToGeoLocation/Latitude/35.6764/Longitude/139.6500
         /// </summary>
         public static async Task<GeoLocation> CoordinatesToGeoLocation(string latitude, string longitude)
@@ -395,7 +446,7 @@ namespace VedAstro.Library
             async Task<GeoLocation> _CoordinatesToGeoLocation(string latitude, string longitude)
             {
                 //inject api key from parent
-                var locationProvider = new Location();
+                var locationProvider = new LocationManager();
 
                 //do calculation using API and cache inteligently
                 var returnVal = await locationProvider.CoordinatesToGeoLocation(latitude, longitude);
@@ -418,7 +469,7 @@ namespace VedAstro.Library
             async Task<string> _GeoLocationToTimezone(GeoLocation geoLocation, DateTimeOffset timeAtLocation)
             {
                 //inject api key from parent
-                var locationProvider = new Location();
+                var locationProvider = new LocationManager();
 
                 //do calculation using API and cache inteligently
                 var returnVal = await locationProvider.GeoLocationToTimezone(geoLocation, timeAtLocation);
@@ -441,7 +492,7 @@ namespace VedAstro.Library
             {
 
                 //inject api key from parent
-                var locationProvider = new Location();
+                var locationProvider = new LocationManager();
 
                 //do calculation using API and cache inteligently
                 var returnVal = await locationProvider.IpAddressToGeoLocation(ipAddress);
@@ -593,7 +644,6 @@ namespace VedAstro.Library
         }
 
 
-
         #endregion
 
         #region MATCH CHECK KUTA SCORE
@@ -601,7 +651,7 @@ namespace VedAstro.Library
         /// <summary>
         /// Get full kuta match data for 2 horoscopes
         /// </summary>
-        public static MatchReport CompatibilityMatch(Time maleBirthTime, Time femaleBirthTime)
+        public static MatchReport MatchReport(Time maleBirthTime, Time femaleBirthTime)
         {
             //get 1st and 2nd only for now (todo support more)
             var male = new Person("", maleBirthTime, Gender.Male);
@@ -609,7 +659,6 @@ namespace VedAstro.Library
 
             //generate compatibility report
             var compatibilityReport = MatchReportFactory.GetNewMatchReport(male, female, "101");
-
 
             return compatibilityReport;
         }
@@ -788,44 +837,6 @@ namespace VedAstro.Library
             }
         }
 
-        public class Movie
-        {
-            public string Title { get; set; }
-            public string Director { get; set; }
-            // Add other properties as needed
-        }
-
-        public class SearchResults
-        {
-            public Movie[] Value { get; set; }
-        }
-
-        public static async Task<JObject> GetData(string searchQuery)
-        {
-            string subscriptionKey = Secrets.Get("BING_IMAGE_SEARCH");
-
-            //string searchQuery = $"movies directed by {director}";
-            string bingAPIEndpoint = "https://api.bing.microsoft.com/v7.0/entities";
-
-            using (var client = new HttpClient())
-            {
-                var uri = new Uri($"{bingAPIEndpoint}?q={Uri.EscapeDataString(searchQuery)}&count=100&mkt=en-US");
-                client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", subscriptionKey);
-
-                var response = await client.GetAsync(uri);
-
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-
-                JObject jobj = JObject.Parse(jsonResponse);
-
-                return jobj;
-            }
-
-
-            throw new NotImplementedException();
-        }
-
-
         #endregion
 
         #region CHAT API & MACHINE LEARNING
@@ -936,276 +947,68 @@ namespace VedAstro.Library
 
         #endregion
 
-        //the introduction of certain sensitive points
-        // or sahams signifying events is a novel aspect ofTajaka. 
-        //There are special
-        // positions or points signifying important events in life.
-        // While a Bhava or house comprehends a number of
-        // events, a Saham or sensitive point relates to only one
-        // particular event. 
+        #region VARGAS OR SUBTLE DIVISIONS
 
-        #region SAHAMS
+        /// <summary>
+        /// Checks if the inputed sign was the sign of the house during the inputed time
+        /// </summary>
+        public static bool IsHouseSignName(HouseName house, ZodiacName sign, Time time) => HouseSignName(house, time) == sign;
 
-        //public static Angle PunyaSahamLongitude(Time birthTime)
-        //{
-        //    //# 1 Punya Fortune/good deeds Moon – Sun + Lagna
-        //    var moonLong = Calculate.PlanetNirayanaLongitude(Moon, birthTime).TotalDegrees; //A
-        //    var sunLong = Calculate.PlanetNirayanaLongitude(Sun, birthTime).TotalDegrees; //B
-        //    var lagnaLong = Calculate.HouseLongitude(HouseName.House1, birthTime).GetMiddleLongitude().TotalDegrees; //C
-
-        //    //Each saham has a formula that looks like A - B + C. What
-        //    //this means is that we take the longitudes of A, B and C and find (A - B + C).
-        //    //This is equivalent to finding how far A is from B and then taking the same distance from C.
-        //    var punyaSahamLong = (moonLong - sunLong) + lagnaLong;
-
-        //    //if night birth
-        //    var isNightBirth = Calculate.IsNightBirth(birthTime);
-        //    if (isNightBirth) { punyaSahamLong = (sunLong - moonLong) + lagnaLong; }
-
-        //    // However, if C is not between B and A (i.e. we start
-        //    // from B and go zodiacal till we meet A, and we do not find C on the way),
-        //    // then we add 30° to the value evaluated above.
-        //    if (!IsSahamCBetweenBToA(moonLong, sunLong, lagnaLong)) { punyaSahamLong += 30; }
-
-        //    //expunge 360 degrees
-        //    var final = Angle.FromDegrees(punyaSahamLong).Expunge360();
-
-        //    return final;
-        //}
-
-        public static Angle PunyaSahamLongitude(Time birthTime)
+        /// <summary>
+        /// Gets only the the zodiac sign name at middle longitude of the house.
+        /// </summary>
+        public static ZodiacName HouseSignName(HouseName houseNumber, Time time)
         {
-            //STEP 1:
-            //in order to find the Punya Saham deduct
-            //the Sun's longitude from the Moon's (if the year
-            //commences during daytime or vice versa if during the
-            //night) and add the ascendant
-            var moonLong = Calculate.PlanetNirayanaLongitude(Moon, birthTime).TotalDegrees; //A
-            var sunLong = Calculate.PlanetNirayanaLongitude(Sun, birthTime).TotalDegrees; //B
-            var tajakaBirth = Calculate.TajikaDateForYear(birthTime, 205);
+            //if empty return aries, can't give empty because no Empty for ZodiacName (todo might not be needed)
+            if (houseNumber == HouseName.Empty) { return ZodiacName.Aries; }
 
-            return Angle.Degrees180;
+            //get full sign data
+            var zodiacSign = Calculate.HouseZodiacSign(houseNumber, time);
 
-        }
-
-        public static Angle VidyaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle YasasSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle MitraSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle MahatmyaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle AshaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle SamarthaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle BhratruSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle GauravaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle PitruSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle RajyaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle MatruSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle PutraSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle JeevastambaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle KarmaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle RogaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle KalaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle ShashtrasthanaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle BandhuSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle MrityuSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle ParadeshSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle ArthastambaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle ParameshthisthanaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle VanijSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle KaryasiddhiSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle VivahaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle SanthanasthanaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle SradhdhasthanamSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle PreethistambhaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle JadysthanamSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle VyanjansthanaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle SathruSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle JaladoshamSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle BandhanasthanaSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle ApamrithyusthanamSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static Angle LabhesthanamSahamLongitude(Time standardHoroscope)
-        {
-            throw new NotImplementedException();
+            //only return name
+            return zodiacSign.GetSignName();
         }
 
         /// <summary>
-        /// This function checks if the astrological sign (Rasi) of a point C is between
-        /// the astrological signs of points B and A.
-        /// The astrological sign is calculated by dividing the longitude by 30.
-        /// The function returns true if C’s Rasi is between B’s and A’s Rasi, and false otherwise.
+        /// Gets the zodiac sign at middle longitude of the house with degrees data
         /// </summary>
-        private static bool IsSahamCBetweenBToA(double aLong, double bLong, double cLong)
+        public static ZodiacSign HouseZodiacSign(HouseName houseNumber, Time time)
         {
-            // Convert the longitude values to Rasi (Hindu Astrological Sign) by dividing by 30
-            int aRasi = (int)(aLong / 30);
-            int bRasi = (int)(bLong / 30);
-            int cRasi = (int)(cLong / 30);
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
 
-            // Initialize a flag to check if C's Rasi is found between B's and A's Rasi
-            bool cRasiFound = false;
+            //get the house specified 
+            var specifiedHouse = allHouses.Find(house => house.GetHouseName() == houseNumber);
 
-            // Loop from B's Rasi to B's Rasi + 11 (covering all 12 Rasis in a circular manner)
-            for (int n = bRasi; n < bRasi + 11; n++)
-            {
-                // Calculate the next Rasi in a circular manner (0 to 11)
-                int nextN = (n + 1) % 12;
+            //get sign of the specified house
+            var middleLongitude = specifiedHouse.GetMiddleLongitude();
+            var houseSign = ZodiacSignAtLongitude(middleLongitude);
 
-                // If the next Rasi is C's Rasi, set the flag to True and break the loop
-                if (nextN == cRasi)
-                {
-                    cRasiFound = true;
-                    break;
-                }
-                // If the next Rasi is A's Rasi before finding C's Rasi, break the loop
-                else if (nextN == aRasi)
-                {
-                    break;
-                }
-            }
-
-            // Return the flag which indicates if C's Rasi is between B's and A's Rasi
-            return cRasiFound;
+            //return the name of house sign
+            return houseSign;
         }
 
+        /// <summary>
+        /// Gets the zodiac sign at middle longitude of the house.
+        /// </summary>
+        public static Dictionary<HouseName, ZodiacSign> AllHouseZodiacSigns(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseZodiacSign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseHoraSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseHoraD2Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseDrekkanaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseDrekkanaD3Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseChaturthamsaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseChaturthamshaD4Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseSaptamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseSaptamshaD7Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseNavamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseNavamshaD9Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseDashamamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseDashamamshaD10Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseDwadashamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseDwadashamshaD12Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseShodashamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseShodashamshaD16Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseVimshamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseVimshamshaD20Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseChaturvimshamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseChaturvimshamshaD24Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseBhamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseBhamshaD27Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseTrimshamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseTrimshamshaD30Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseKhavedamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseKhavedamshaD40Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseAkshavedamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseAkshavedamshaD45Sign(houseName, time));
+        public static Dictionary<HouseName, ZodiacSign> AllHouseShashtyamshaSign(Time time) => House.AllHouses.ToDictionary(houseName => houseName, houseName => Calculate.HouseShashtyamshaD60Sign(houseName, time));
 
-        #endregion
 
-        #region VARGAS OR SUBTLE DIVISIONS
 
         /// <summary>
         /// Calculates the divisional longitude of a planet in a D-chart (divisional chart) in Vedic Astrology.
@@ -1243,11 +1046,11 @@ namespace VedAstro.Library
             // Multiply the planet's longitude by the D-chart number to get the raw divisional longitude.
             var total_degrees = totalDegrees * divisionalNo;
 
-            // Step 2: Normalize the raw divisional longitude to the range [0, 60) degrees.
-            // This is done by subtracting 60 (the number of degrees in a zodiac sign) until the result is less than 60.
-            while (total_degrees >= 60)
+            // Step 2: Normalize the raw divisional longitude to the range [0, 30) degrees.
+            // This is done by subtracting 30 (the number of degrees in a zodiac sign) until the result is less than 30.
+            while (total_degrees >= 30)
             {
-                total_degrees -= 60;
+                total_degrees -= 30;
             }
 
             // The remaining value is the longitude of the planet in the D-chart.
@@ -1255,8 +1058,27 @@ namespace VedAstro.Library
             return finalLong;
         }
 
+        //------------ D0 : Bhava ------------
 
-        //------------ D1 ------------
+        /// <summary>
+        /// Get zodiac sign planet is in based on house longitudes
+        /// basically the sign of the house the planet is in based on longitudes
+        /// D0 Bhava chart
+        /// </summary>
+        public static ZodiacSign PlanetZodiacSignBasedOnHouseLongitudes(PlanetName planetName, Time time)
+        {
+            //get house of planet
+            var planetHouse = Calculate.HousePlanetOccupiesBasedOnLongitudes(planetName, time);
+
+            //get zodiac sign at middle longitude of house
+            var houseZodiacSign = Calculate.HouseZodiacSign(planetHouse, time);
+
+            //return
+            return houseZodiacSign;
+        }
+
+
+        //------------ D1 : Rashi ------------
         /// <summary>
         /// Get zodiac sign planet is in.
         /// D1
@@ -1283,82 +1105,867 @@ namespace VedAstro.Library
         }
 
 
-        //------------ D2 ------------
+        //------------ D2 : Hora ------------
 
         /// <summary>
-        /// Gets hora zodiac sign of a planet
-        /// D2
+        /// Gets Hora (D2) zodiac sign of a planet
         /// </summary>
-        public static ZodiacSign PlanetHoraSigns(PlanetName planetName, Time time) => Calculate.DrekkanaSignName(Calculate.PlanetZodiacSign(planetName, time));
+        public static ZodiacSign PlanetHoraD2Signs(PlanetName planetName, Time time) => Calculate.DrekkanaSignName(Calculate.PlanetZodiacSign(planetName, time));
 
         /// <summary>
         /// D2 chart
         /// </summary>
-        public static ZodiacSign HoraSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.HoraTable[zodiacSign.GetSignName()], 2);
+        public static ZodiacSign HoraSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.HoraTable, 2);
 
         /// <summary>
-        /// given a longitude will return hora sign at that
+        /// Given a longitude will return Hora (D2) sign at that longitude
         /// </summary>
         public static ZodiacSign HoraSignAtLongitude(Angle longitude) => HoraSignName(ZodiacSignAtLongitude(longitude));
 
         /// <summary>
         /// Gets the zodiac sign at middle longitude of the house with degrees data
         /// </summary>
-        public static ZodiacSign HouseHoraSign(HouseName houseNumber, Time time)
+        public static ZodiacSign HouseHoraD2Sign(HouseName houseNumber, Time time)
         {
             //get all houses
-            var allHouses = AllHouseMiddleLongitudes(time);
+            var allHouses = AllHouseLongitudes(time);
 
-            //get the house specified 
-            var specifiedHouse = allHouses.Find(house => house.GetHouseName() == houseNumber);
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = HoraSignAtLongitude(house1MiddleLongitude);
 
-            //get sign of the specified house
-            var middleLongitude = specifiedHouse.GetMiddleLongitude();
-            var houseSign = HoraSignAtLongitude(middleLongitude);
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
 
             //return the name of house sign
-            return houseSign;
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
         }
 
 
-        //------------ D3 ------------
+        //------------ D3 : Drekkana ------------
+
         /// <summary>
         /// Gets the Drekkana sign the planet is in
         /// D3
         /// </summary>
-        public static ZodiacSign PlanetDrekkanaSign(PlanetName planetName, Time time) => Calculate.DrekkanaSignName(Calculate.PlanetZodiacSign(planetName, time));
+        public static ZodiacSign PlanetDrekkanaD3Sign(PlanetName planetName, Time time) => Calculate.DrekkanaSignName(Calculate.PlanetZodiacSign(planetName, time));
 
         /// <summary>
         /// Given a zodiac sign will convert to drekkana
         /// D3
         /// </summary>
-        public static ZodiacSign DrekkanaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.DrekkanaTable[zodiacSign.GetSignName()], 3);
+        public static ZodiacSign DrekkanaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.DrekkanaTable, 3);
+
+        /// <summary>
+        /// Given a longitude will return Drekkana (D3) sign at that longitude
+        /// </summary>
+        public static ZodiacSign DrekkanaSignAtLongitude(Angle longitude) => DrekkanaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Drekkana sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseDrekkanaD3Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = DrekkanaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
 
 
-        //------------ D4 ------------
+
+        //------------ D4 : Chaturthamsha ------------
 
         /// <summary>
         /// D4 chart
         /// </summary>
-        public static ZodiacSign PlanetChaturthamshaSign(PlanetName planetName, Time time) => Calculate.ChaturthamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+        public static ZodiacSign PlanetChaturthamshaD4Sign(PlanetName planetName, Time time) => Calculate.ChaturthamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
 
         /// <summary>
         /// D4 chart
         /// </summary>
-        public static ZodiacSign ChaturthamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.ChaturthamshaTable[zodiacSign.GetSignName()], 4);
+        public static ZodiacSign ChaturthamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.ChaturthamshaTable, 4);
+
+        /// <summary>
+        /// Given a longitude will return Hora (D4) sign at that longitude
+        /// </summary>
+        public static ZodiacSign ChaturthamshaSignAtLongitude(Angle longitude) => ChaturthamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Chaturthamsha D4 sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseChaturthamshaD4Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = ChaturthamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
 
 
-        //------------ D5 ------------
-        //WAITING TO BE DONE
+
+        //------------ D7 : Saptamsha ------------
+        /// <summary>
+        /// D7 chart
+        /// </summary>
+        public static ZodiacSign PlanetSaptamshaD7Sign(PlanetName planetName, Time time) => Calculate.SaptamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D7 chart
+        /// </summary>
+        public static ZodiacSign SaptamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.SaptamshaTable, 7);
+
+        /// <summary>
+        /// Given a longitude will return Saptamsha (D7) sign at that longitude
+        /// </summary>
+        public static ZodiacSign SaptamshaSignAtLongitude(Angle longitude) => SaptamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Saptamsha (D7) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseSaptamshaD7Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = SaptamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+        /// <summary>
+        /// Saptamsa (D7) and measures 4.28 degrees
+        /// TODO : BV RAMAN method, OLD MARKED FOR OBLIVION, NEEDS TESTING AGAINST NEW METHOD
+        /// </summary>
+        public static ZodiacName PlanetSaptamshaSignOLD(PlanetName planetName, Time time)
+        {
+            //get sign planet is in
+            var planetSign = PlanetZodiacSign(planetName, time);
+
+            //get planet sign name
+            var planetSignName = planetSign.GetSignName();
+
+            //get degrees in sign 
+            var degreesInSign = planetSign.GetDegreesInSign().TotalDegrees;
+
+            //declare const number for saptamsa calculation
+            const double maxSaptamsaDegrees = 4.285714285714286; // 30/7
+            const double maxSignDegrees = 30.0;
+
+            //get rough saptamsa number
+            double roughSaptamsaNumber = (degreesInSign % maxSignDegrees) / maxSaptamsaDegrees;
+
+            //get rounded saptamsa number
+            var saptamsaNumber = (int)Math.Ceiling(roughSaptamsaNumber);
+
+            //2.0 Get even or odd sign
+
+            //if planet is in odd sign
+            if (IsOddSign(planetSignName))
+            {
+                //convert saptamsa number to zodiac name
+                return SignCountedFromInputSign(planetSignName, saptamsaNumber);
+            }
+
+            //if planet is in even sign
+            if (IsEvenSign(planetSignName))
+            {
+                var countToNextSign = saptamsaNumber + 6;
+                return SignCountedFromInputSign(planetSignName, countToNextSign);
+            }
+
+
+            throw new Exception("Saptamsa not found, error!");
+        }
+
+
+        //------------ D9 : Navamsha ------------
+
+        /// <summary>
+        /// D9 chart
+        /// </summary>
+        public static ZodiacSign PlanetNavamshaD9Sign(PlanetName planetName, Time time) => Calculate.NavamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D9 chart
+        /// </summary>
+        public static ZodiacSign NavamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.NavamshaTable, 9);
+
+        /// <summary>
+        /// Gets Navamsa (D9) sign given a longitude
+        /// </summary>
+        public static ZodiacSign NavamshaSignAtLongitude(Angle longitude) => Calculate.NavamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Get Navamsa (D9) sign of house (mid point)
+        /// </summary>
+        public static ZodiacSign HouseNavamshaD9Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = NavamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+        /// <summary>
+        /// Gets Navamsa (D9) sign given a longitude
+        /// TODO : BV RAMAN method, OLD MARKED FOR OBLIVION, NEEDS TESTING AGAINST NEW METHOD
+        /// </summary>
+        public static ZodiacSign NavamshaSignAtLongitudeOLD(Angle longitude)
+        {
+            //1.0 Get ordinary zodiac sign name
+            //get ordinary zodiac sign
+            var ordinarySign = ZodiacSignAtLongitude(longitude);
+
+            //get name of ordinary sign
+            var ordinarySignName = ordinarySign.GetSignName();
+
+            //2.0 Get first navamsa sign
+            ZodiacName firstNavamsa;
+
+            switch (ordinarySignName)
+            {
+                //Aries, Leo, Sagittarius - from Aries.
+                case ZodiacName.Aries:
+                case ZodiacName.Leo:
+                case ZodiacName.Sagittarius:
+                    firstNavamsa = ZodiacName.Aries;
+                    break;
+                //Taurus, Capricorn, Virgo - from Capricorn.
+                case ZodiacName.Taurus:
+                case ZodiacName.Capricorn:
+                case ZodiacName.Virgo:
+                    firstNavamsa = ZodiacName.Capricorn;
+                    break;
+                //Gemini, Libra, Aquarius - from Libra.
+                case ZodiacName.Gemini:
+                case ZodiacName.Libra:
+                case ZodiacName.Aquarius:
+                    firstNavamsa = ZodiacName.Libra;
+                    break;
+                //Cancer, Scorpio, Pisces - from Cancer.
+                case ZodiacName.Cancer:
+                case ZodiacName.Scorpio:
+                case ZodiacName.Pisces:
+                    firstNavamsa = ZodiacName.Cancer;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            //3.0 Get the number of the navamsa currently in
+            //get degrees in ordinary sign
+            var degreesInOrdinarySign = ordinarySign.GetDegreesInSign();
+
+            //declare length of a navamsa in the ecliptic arc
+            const double navamsaLenghtInDegrees = 3.333333333;
+
+            //divide total degrees in current sign to get raw navamsa number
+            var rawNavamsaNumber = degreesInOrdinarySign.TotalDegrees / navamsaLenghtInDegrees;
+
+            //round the raw number to get current navamsa number
+            var navamsaNumber = (int)Math.Ceiling(rawNavamsaNumber);
+
+            //4.0 Get navamsa sign
+            //count from first navamsa sign
+            ZodiacName signAtNavamsa = SignCountedFromInputSign(firstNavamsa, navamsaNumber);
+
+            return new ZodiacSign(signAtNavamsa, Angle.Zero);
+
+        }
+
+
+
+        //------------ D10 : Dashamamsha ------------
+        /// <summary>
+        /// D10 chart
+        /// </summary>
+        public static ZodiacSign PlanetDashamamshaD10Sign(PlanetName planetName, Time time) => Calculate.DashamamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D10 chart
+        /// </summary>
+        public static ZodiacSign DashamamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.DashamamshaTable, 10);
+
+        /// <summary>
+        /// Given a longitude will return Dashamamsha (D10) sign at that longitude
+        /// </summary>
+        public static ZodiacSign DashamamshaSignAtLongitude(Angle longitude) => DashamamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Dashamamsha (D10) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseDashamamshaD10Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = DashamamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+
+        //------------ D12 : Dwadashamsha ------------
+
+        /// <summary>
+        /// D12 chart
+        /// </summary>
+        public static ZodiacSign PlanetDwadashamshaD12Sign(PlanetName planetName, Time time) => Calculate.DwadashamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D12 chart
+        /// </summary>
+        public static ZodiacSign DwadashamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.DwadashamshaTable, 12);
+
+        /// <summary>
+        /// Given a longitude will return Dwadashamsha (D12) sign at that longitude
+        /// </summary>
+        public static ZodiacSign DwadashamshaSignAtLongitude(Angle longitude) => DwadashamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Dwadashamsha (D12) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseDwadashamshaD12Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = DwadashamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+        /// <summary>
+        /// When a sign is divided into 12 equal parts each is called a Dwadasamsa (D12) and measures 2.5 degrees.
+        /// The Bhachakra can thus he said to contain 12x12=144 Dwadasamsas. The lords of the 12
+        /// Dwadasamsas in a sign are the lords of the 12 signs from it, i.e.,
+        /// the lord of the first Dwadasamsa in Mesha is Kuja, that of the second Sukra and so on.
+        /// 
+        /// TODO : BV RAMAN method, OLD MARKED FOR OBLIVION, NEEDS TESTING AGAINST NEW METHOD
+        /// </summary>
+        public static ZodiacName PlanetDwadashamshaSignOLD(PlanetName planetName, Time time)
+        {
+            //get sign planet is in
+            var planetSign = PlanetZodiacSign(planetName, time);
+
+            //get planet sign name
+            var planetSignName = planetSign.GetSignName();
+
+            //get degrees in sign 
+            var degreesInSign = planetSign.GetDegreesInSign().TotalDegrees;
+
+            //declare const number for Dwadasamsa calculation
+            const double maxDwadasamsaDegrees = 2.5; // 30/12
+            const double maxSignDegrees = 30.0;
+
+            //get rough Dwadasamsa number
+            double roughDwadasamsaNumber = (degreesInSign % maxSignDegrees) / maxDwadasamsaDegrees;
+
+            //get rounded Dwadasamsa number
+            var dwadasamsaNumber = (int)Math.Ceiling(roughDwadasamsaNumber);
+
+            //get Dwadasamsa sign from counting with Dwadasamsa number
+            var dwadasamsaSign = SignCountedFromInputSign(planetSignName, dwadasamsaNumber);
+
+            return dwadasamsaSign;
+        }
+
+
+        //------------ D16 : Shodashamsha ------------
+
+        /// <summary>
+        /// D16 chart
+        /// </summary>
+        public static ZodiacSign PlanetShodashamshaD16Sign(PlanetName planetName, Time time) => Calculate.ShodashamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D16 chart
+        /// </summary>
+        public static ZodiacSign ShodashamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.ShodashamshaTable, 16);
+
+        /// <summary>
+        /// Given a longitude will return Shodashamsha (D16) sign at that longitude
+        /// </summary>
+        public static ZodiacSign ShodashamshaSignAtLongitude(Angle longitude) => ShodashamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Shodashamsha (D16) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseShodashamshaD16Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = ShodashamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D20 : Vimshamsha ------------
+        /// <summary>
+        /// D20 chart
+        /// </summary>
+        public static ZodiacSign PlanetVimshamshaD20Sign(PlanetName planetName, Time time) => Calculate.VimshamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D20 chart
+        /// </summary>
+        public static ZodiacSign VimshamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.VimshamshaTable, 20);
+
+        /// <summary>
+        /// Given a longitude will return Vimshamsha (D20) sign at that longitude
+        /// </summary>
+        public static ZodiacSign VimshamshaSignAtLongitude(Angle longitude) => VimshamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Vimshamsha (D20) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseVimshamshaD20Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = VimshamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D24 : Chaturvimshamsha ------------
+        /// <summary>
+        /// D24 chart
+        /// </summary>
+        public static ZodiacSign PlanetChaturvimshamshaD24Sign(PlanetName planetName, Time time) => Calculate.ChaturvimshamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D24 chart
+        /// </summary>
+        public static ZodiacSign ChaturvimshamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.ChaturvimshamshaTable, 24);
+
+        /// <summary>
+        /// Given a longitude will return Chaturvimshamsha (D24) sign at that longitude
+        /// </summary>
+        public static ZodiacSign ChaturvimshamshaSignAtLongitude(Angle longitude) => ChaturvimshamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Chaturvimshamsha (D24) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseChaturvimshamshaD24Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = ChaturvimshamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D27 : Bhamsha / Sapta-vimshamsha ------------
+        /// <summary>
+        /// D27 chart
+        /// </summary>
+        public static ZodiacSign PlanetBhamshaD27Sign(PlanetName planetName, Time time) => Calculate.BhamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D27 chart
+        /// </summary>
+        public static ZodiacSign BhamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.BhamshaTable, 27);
+
+        /// <summary>
+        /// Given a longitude will return Bhamsha (D27) sign at that longitude
+        /// </summary>
+        public static ZodiacSign BhamshaSignAtLongitude(Angle longitude) => BhamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Bhamsha (D27) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseBhamshaD27Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = BhamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D30 : Trimshamsha ------------
+
+        /// <summary>
+        /// Get Thrimsamsa (D30) sign of planet
+        /// Trimshamsha or one-thirtieth of a sign
+        ///
+        /// Reference (Elements of Astrology) : 
+        /// Trimshamsha (Table X-12): Literally speaking, it is considered as one-
+        /// thirtieth division of a sign. Actually, however, each sign is divided into five
+        /// unequal parts, each part belonging to one of the five planets from Mars to
+        /// Saturn. In odd signs, the first five degrees belong to Mars, the next five
+        /// degrees to Saturn, the next eight degrees to Jupiter, the subsequent seven
+        /// degrees to Mercury, and the last five degrees to Venus. This order gets
+        /// reversed in case of even signs where the planets Venus, Mercury, Jupiter,
+        /// Saturn and Mars respectively own five degrees, seven degrees, eight
+        /// degrees, five degrees and five degrees, in a sign.
+        ///
+        /// </summary>
+
+        public static ZodiacSign PlanetTrimshamshaD30Sign(PlanetName planetName, Time time) => Calculate.TrimshamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D30 chart
+        /// </summary>
+        public static ZodiacSign TrimshamshaSignName(ZodiacSign zodiacSign)
+        {
+            //get planet sign name
+            var zodiacSignName = zodiacSign.GetSignName();
+
+            //get degrees in sign 
+            var degreesInSign = zodiacSign.GetDegreesInSign().TotalDegrees;
+
+            //declare const number for Thrimsamsa calculation
+            const double maxThrimsamsaDegrees = 1; // 30/1
+            const double maxSignDegrees = 30.0;
+
+            //get rough Thrimsamsa number
+            double roughThrimsamsaNumber = (degreesInSign % maxSignDegrees) / maxThrimsamsaDegrees;
+
+            //get rounded saptamsa number
+            var thrimsamsaNumber = (int)Math.Ceiling(roughThrimsamsaNumber);
+
+            var signName = ZodiacName.Empty;
+
+            //if planet is in odd sign
+            if (IsOddSign(zodiacSignName))
+            {
+                //1,2,3,4,5 - Mars
+                if (thrimsamsaNumber >= 0 && thrimsamsaNumber <= 5)
+                {
+                    //Aries and Scorpio are ruled by Mars
+                    signName = ZodiacName.Scorpio;
+                }
+                //6,7,8,9,10 - saturn
+                if (thrimsamsaNumber >= 6 && thrimsamsaNumber <= 10)
+                {
+                    //Capricorn and Aquarius by Saturn.
+                    signName = ZodiacName.Capricorn;
+
+                }
+                //11,12,13,14,15,16,17,18 - jupiter
+                if (thrimsamsaNumber >= 11 && thrimsamsaNumber <= 18)
+                {
+                    //Sagittarius and Pisces by Jupiter
+                    signName = ZodiacName.Sagittarius;
+
+                }
+                //19,20,21,22,23,24,25 - mercury
+                if (thrimsamsaNumber >= 19 && thrimsamsaNumber <= 25)
+                {
+                    //Gemini and Virgo by Mercury
+                    signName = ZodiacName.Gemini;
+                }
+                //26,27,28,29,30 - venus
+                if (thrimsamsaNumber >= 26 && thrimsamsaNumber <= 30)
+                {
+                    //Taurus and Libra by Venus;
+                    signName = ZodiacName.Taurus;
+                }
+
+            }
+
+            //if planet is in even sign
+            if (IsEvenSign(zodiacSignName))
+            {
+                //1,2,3,4,5 - venus
+                if (thrimsamsaNumber >= 0 && thrimsamsaNumber <= 5)
+                {
+                    //Taurus and Libra by Venus;
+                    signName = ZodiacName.Taurus;
+                }
+                //6,7,8,9,10,11,12 - mercury
+                if (thrimsamsaNumber >= 6 && thrimsamsaNumber <= 12)
+                {
+                    //Gemini and Virgo by Mercury
+                    signName = ZodiacName.Gemini;
+                }
+                //13,14,15,16,17,18,19,20 - jupiter
+                if (thrimsamsaNumber >= 13 && thrimsamsaNumber <= 20)
+                {
+                    //Sagittarius and Pisces by Jupiter
+                    signName = ZodiacName.Sagittarius;
+
+                }
+                //21,22,23,24,25 - saturn
+                if (thrimsamsaNumber >= 21 && thrimsamsaNumber <= 25)
+                {
+                    //Capricorn and Aquarius by Saturn.
+                    signName = ZodiacName.Capricorn;
+
+                }
+                //26,27,28,29,30 - Mars
+                if (thrimsamsaNumber >= 26 && thrimsamsaNumber <= 30)
+                {
+                    //Aries and Scorpio are ruled by Mars
+                    signName = ZodiacName.Scorpio;
+                }
+
+            }
+
+            //NOTE : degrees in sign have to be converted (special logic) for specific division type
+            var divisionalDegreesInSign = Calculate.DivisionalLongitude(degreesInSign, 30);
+            return new ZodiacSign(signName, divisionalDegreesInSign);
+
+        }
+
+        /// <summary>
+        /// Given a longitude will return Trimshamsha (D30) sign at that longitude
+        /// </summary>
+        public static ZodiacSign TrimshamshaSignAtLongitude(Angle longitude) => TrimshamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Trimshamsha (D30) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseTrimshamshaD30Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = TrimshamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D40 : Khavedamsha ------------
+        /// <summary>
+        /// D40 chart
+        /// </summary>
+        public static ZodiacSign PlanetKhavedamshaD40Sign(PlanetName planetName, Time time) => Calculate.KhavedamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D40 chart
+        /// </summary>
+        public static ZodiacSign KhavedamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.KhavedamshaTable, 40);
+
+        /// <summary>
+        /// Given a longitude will return Khavedamsha (D40) sign at that longitude
+        /// </summary>
+        public static ZodiacSign KhavedamshaSignAtLongitude(Angle longitude) => KhavedamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Khavedamsha (D40) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseKhavedamshaD40Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = KhavedamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D45 : Aksha-vedamsha ------------
+        /// <summary>
+        /// D45 chart
+        /// </summary>
+        public static ZodiacSign PlanetAkshavedamshaD45Sign(PlanetName planetName, Time time) => Calculate.AkshavedamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D45 chart
+        /// </summary>
+        public static ZodiacSign AkshavedamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.AkshavedamshaTable, 45);
+
+        /// <summary>
+        /// Given a longitude will return Akshavedamsha (D45) sign at that longitude
+        /// </summary>
+        public static ZodiacSign AkshavedamshaSignAtLongitude(Angle longitude) => AkshavedamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Akshavedamsha (D45) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseAkshavedamshaD45Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = AkshavedamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+
+
+        //------------ D60 : Shashtyamsha ------------
+        /// <summary>
+        /// D60 chart
+        /// </summary>
+        public static ZodiacSign PlanetShashtyamshaD60Sign(PlanetName planetName, Time time) => Calculate.ShashtyamshaSignName(Calculate.PlanetZodiacSign(planetName, time));
+
+        /// <summary>
+        /// D60 chart
+        /// </summary>
+        public static ZodiacSign ShashtyamshaSignName(ZodiacSign zodiacSign) => Vargas.VargasCoreCalculator(zodiacSign, Vargas.ShashtyamshaTable, 60);
+
+        /// <summary>
+        /// Given a longitude will return Shashtyamsha (D60) sign at that longitude
+        /// </summary>
+        public static ZodiacSign ShashtyamshaSignAtLongitude(Angle longitude) => ShashtyamshaSignName(ZodiacSignAtLongitude(longitude));
+
+        /// <summary>
+        /// Gets the Shashtyamsha (D60) sign at middle longitude of the house with degrees data
+        /// </summary>
+        public static ZodiacSign HouseShashtyamshaD60Sign(HouseName houseNumber, Time time)
+        {
+            //get all houses
+            var allHouses = AllHouseLongitudes(time);
+
+            //get sign of the first house (lagna)
+            var house1 = allHouses.Find(house => house.GetHouseName() == HouseName.House1);
+            var house1MiddleLongitude = house1.GetMiddleLongitude();
+            var house1Sign = ShashtyamshaSignAtLongitude(house1MiddleLongitude);
+
+            //count to specified house sign from 1st house sign
+            var houseSign = Calculate.SignCountedFromInputSign(house1Sign.GetSignName(), (int)houseNumber);
+
+            //return the name of house sign
+            return new ZodiacSign(houseSign, house1Sign.GetDegreesInSign());
+        }
+
+        /// <summary>
+        /// Gets list of all planets and the zodiac signs they are in based on house longitudes
+        /// </summary>
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetSignsBasedOnHouseLongitudes(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetZodiacSignBasedOnHouseLongitudes(planet, time));
 
         /// <summary>
         /// Gets list of all planets and the zodiac signs they are in
         /// </summary>
-        public static Dictionary<PlanetName, ZodiacSign> AllPlanetSigns(Time time) => All9Planets.ToDictionary(planet => planet, planet => new ZodiacSign(PlanetZodiacSign(planet, time).GetSignName(), Angle.Zero));
-        public static Dictionary<PlanetName, ZodiacSign> AllPlanetHoraSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetHoraSigns(planet, time));
-        public static Dictionary<PlanetName, ZodiacSign> AllPlanetDrekkanaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetDrekkanaSign(planet, time));
-        public static Dictionary<PlanetName, ZodiacSign> AllPlanetChaturthamsaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetChaturthamshaSign(planet, time));
-        public static Dictionary<PlanetName, ZodiacSign> AllPlanetPanchamsaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetPanchamsaSign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetZodiacSigns(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetZodiacSign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetHoraSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetHoraD2Signs(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetDrekkanaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetDrekkanaD3Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetChaturthamsaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetChaturthamshaD4Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetSaptamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetSaptamshaD7Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetNavamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetNavamshaD9Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetDashamamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetDashamamshaD10Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetDwadashamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetDwadashamshaD12Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetShodashamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetShodashamshaD16Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetVimshamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetVimshamshaD20Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetChaturvimshamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetChaturvimshamshaD24Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetBhamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetBhamshaD27Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetTrimshamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetTrimshamshaD30Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetKhavedamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetKhavedamshaD40Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetAkshavedamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetAkshavedamshaD45Sign(planet, time));
+        public static Dictionary<PlanetName, ZodiacSign> AllPlanetShashtyamshaSign(Time time) => All9Planets.ToDictionary(planet => planet, planet => PlanetShashtyamshaD60Sign(planet, time));
+
 
 
         #endregion
@@ -1505,7 +2112,7 @@ namespace VedAstro.Library
             // 365 days, 6 hours, 9 minutes and 12 seconds differing from. the Hindu sidereal year by ~.5 vighatis or
             // 3 minutes and 24 seconds. A study· of a number of
             // annual charts for over 30 years has convinced me
-            // that the moden_:1 value of the sidereal year would yield
+            // that the modern value of the sidereal year would yield
             // better results. H
 
             //CACHE MECHANISM
@@ -1517,7 +2124,7 @@ namespace VedAstro.Library
             Time _tajikaDateForYear()
             {
 
-                //Below data was called out from pg 22 of Varshaphala-Hindu Progressed Horoscope - BV. RAMAN
+                //Below data was culled out from pg 22 of Varshaphala-Hindu Progressed Horoscope - BV. RAMAN
                 var records = new Dictionary<int, Dictionary<string, int>>()
                 {
                     { 1, new Dictionary<string, int>(){ {"Days", 1}, {"Hrs", 6}, {"Mts", 9}, {"Secs", 12} }},
@@ -1570,7 +2177,7 @@ namespace VedAstro.Library
         public static HouseName TransitHouseFromNavamsaLagna(PlanetName transitPlanet, Time checkTime, Time birthTime)
         {
             //Note the Lagna Rashi.
-            var navamsaLagnaRasi = Calculate.HouseNavamsaSign(HouseName.House1, birthTime);
+            var navamsaLagnaRasi = Calculate.HouseNavamshaD9Sign(HouseName.House1, birthTime).GetSignName();
 
             //Choose the planet transit result for which predictions to be made.
 
@@ -1600,7 +2207,7 @@ namespace VedAstro.Library
         public static HouseName TransitHouseFromNavamsaMoon(PlanetName transitPlanet, Time checkTime, Time birthTime)
         {
             //Note the Janma Rashi.
-            var janmaRasi = Calculate.PlanetNavamsaSign(Moon, birthTime);
+            var janmaRasi = Calculate.PlanetNavamshaD9Sign(Moon, birthTime).GetSignName();
 
             //Choose the planet transit result for which predictions to be made.
             //Note the transit position of the Moon with reference to
@@ -2346,7 +2953,7 @@ namespace VedAstro.Library
             Angle moonLong = PlanetNirayanaLongitude(Moon, ccc);
 
             //get non negative difference, expunge 360 if needed
-            var cleanedDifference = moonLong.GetDifference(sunLong).Expunge360();
+            var cleanedDifference = moonLong.GetDifference(sunLong).Normalize360();
 
             return cleanedDifference;
         }
@@ -2701,7 +3308,7 @@ namespace VedAstro.Library
 
             //check if any negative planets is in 5th (conjunct)
             var planetNames = new List<PlanetName>() { Rahu, Ketu, Saturn, Mars };
-            var rahuKetuSaturnMarsIn5th = IsAllPlanetInHouse(planetNames, HouseName.House5, time);
+            var rahuKetuSaturnMarsIn5th = IsAllPlanetsInHouse(planetNames, HouseName.House5, time);
 
             //check if all conditions are met Lajjita
             var isLajjita = isPlanetIn5thHouse && rahuKetuSaturnMarsIn5th;
@@ -2717,7 +3324,7 @@ namespace VedAstro.Library
         public static bool IsPlanetInGarvitaAvasta(PlanetName planetName, Time time)
         {
             //Planet in exaltation sign
-            var planetExalted = IsPlanetExalted(planetName, time);
+            var planetExalted = IsPlanetExaltedDegree(planetName, time);
 
             //moolatrikona zone
             var planetInMoolatrikona = IsPlanetInMoolatrikona(planetName, time);
@@ -3011,7 +3618,375 @@ namespace VedAstro.Library
 
         #endregion
 
+        #region TIME
+
+        /// <summary>
+        /// Converts time back to longitude, it is the reverse of LongitudeToLMTOffset
+        /// Exp :  5h. 10m. 20s. E. Long. to 77° 35' E. Long
+        /// </summary>
+        public static Angle TimeOffsetToLongitude(TimeSpan time)
+        {
+            //TODO function is a candidate for caching
+            //degrees is equivalent to hours
+            var totalDegrees = time.TotalHours * 15;
+
+            return Angle.FromDegrees(totalDegrees);
+        }
+
+        /// <summary>
+        /// Gets the ephemris time that is consumed by Swiss Ephemeris
+        /// Converts normal time to Ephemeris time shown as a number
+        /// </summary>
+        public static double TimeToJulianEphemerisTime(Time time)
+        {
+
+            //CACHE MECHANISM
+            return CacheManager.GetCache(new CacheKey(nameof(TimeToJulianEphemerisTime), time, Ayanamsa), _timeToJulianEphemerisTime);
+
+
+            //UNDERLYING FUNCTION
+            double _timeToJulianEphemerisTime()
+            {
+                SwissEph ephemeris = new();
+
+                //set GREGORIAN CALENDAR
+                int gregflag = SwissEph.SE_GREG_CAL;
+
+                //get LMT at UTC (+0:00)
+                DateTimeOffset utcDate = LmtToUtc(time);
+
+                //extract details of time
+                int year = utcDate.Year;
+                int month = utcDate.Month;
+                int day = utcDate.Day;
+                int hour = utcDate.Hour;
+                int minute = utcDate.Minute;
+                int second = utcDate.Second;
+
+                double jul_day_UT;
+                double jul_day_ET;
+
+                //results[0] = Julian day in ET (TT)
+                //results[1] = Julian day in UT (UT1)
+                double[] results = new double[2];
+                string err_msg = "";
+
+                //do conversion to ephemris time
+                ephemeris.swe_utc_to_jd(year, month, day, hour, minute, second, gregflag, results, ref err_msg); //time to Julian Day
+
+                //Julian day in ET (TT)
+                return results[0];
+            }
+
+        }
+
+
+        public static double TimeToJulianUniversalTime(Time time)
+        {
+
+            //CACHE MECHANISM
+            return CacheManager.GetCache(new CacheKey(nameof(TimeToJulianUniversalTime), time, Ayanamsa), _timeToJulianUniversalTime);
+
+
+            //UNDERLYING FUNCTION
+            double _timeToJulianUniversalTime()
+            {
+                SwissEph ephemeris = new();
+
+                //set GREGORIAN CALENDAR
+                int gregflag = SwissEph.SE_GREG_CAL;
+
+                //get LMT at UTC (+0:00)
+                DateTimeOffset utcDate = LmtToUtc(time);
+
+                //extract details of time
+                int year = utcDate.Year;
+                int month = utcDate.Month;
+                int day = utcDate.Day;
+                int hour = utcDate.Hour;
+                int minute = utcDate.Minute;
+                int second = utcDate.Second;
+
+                double jul_day_UT;
+                double jul_day_ET;
+
+                //results[0] = Julian day in ET (TT)
+                //results[1] = Julian day in UT (UT1)
+                double[] results = new double[2];
+                string err_msg = "";
+
+                //do conversion to ephemris time
+                ephemeris.swe_utc_to_jd(year, month, day, hour, minute, second, gregflag, results, ref err_msg); //time to Julian Day
+
+                //Julian day in UT (UT1)
+                return results[1];
+            }
+
+        }
+
+        /// <summary>
+        /// Convert Local Mean Time (LMT) to Standard Time (STD)
+        /// API URL : ../LmtToStd/Time/05:45/03/05/1932/Longitude/75/STDOffset/+05:30
+        /// </summary>
+        public static DateTimeOffset LmtToStd(LocalMeanTime lmtDateTime, TimeSpan stdOffset)
+        {
+            //get lmt time
+            var lmtTime = new DateTimeOffset(lmtDateTime.Date, LongitudeToLMTOffset(lmtDateTime.Longitude));
+
+            //convert lmt to std & store it
+            var stdTime = lmtTime.ToOffset(stdOffset);
+
+            return stdTime;
+        }
+
+        /// <summary>
+        /// Convert longitude to LMT offset
+        /// input longitude range : -180 to 180 
+        /// </summary>
+        public static TimeSpan LongitudeToLMTOffset(double longitudeDeg)
+        {
+            var failCount = 0;
+            var failTryLimit = 3;
+
+
+            try
+            {
+            TryAgain:
+                //raise alarm if longitude is out of range
+                var outOfRange = !(longitudeDeg >= -180 && longitudeDeg <= 180);
+                if (outOfRange)
+                {
+                    if (failCount < failTryLimit)
+                    {
+                        var oldLongitude = longitudeDeg; //back up for logging
+
+                        //instead of giving up, lets take a go at correcting it
+                        //assume input is 48401 but should be 48.401, so divide 1000
+                        longitudeDeg = longitudeDeg / 1000;
+
+                        failCount++; //keep track so not fall into rabbit hole
+
+                        LibLogger.Debug($"Longitude out of range : {oldLongitude} > Auto correct to : {longitudeDeg}"); //log it for debug research
+
+                        goto TryAgain;
+                    }
+
+                    //if control reaches here than raise exception,
+                    //control should not reach here under any good call condition
+                    throw new Exception($"Longitude out of range : {longitudeDeg} > Auto correct failed!");
+                }
+
+                //calculate offset based on longitude
+                var offsetToReturn = TimeSpan.FromHours(longitudeDeg / 15.0);
+
+                //round off offset to full minutes (because datetime doesnt accept fractional minutes in offsets)
+                var offsetMinutes = Math.Round(offsetToReturn.TotalMinutes);
+
+                //get new offset from rounded minutes
+                offsetToReturn = TimeSpan.FromMinutes(offsetMinutes);
+
+                //return offset to caller
+                return offsetToReturn;
+
+            }
+            catch (Exception e)
+            {
+                //let caller know failure silently
+                LibLogger.Debug(e);
+
+                //return empty LMT for controlled failure
+                return TimeSpan.Zero;
+            }
+
+        }
+
+
+        #endregion
+
         #region GENERAL
+        /// <summary>
+        /// supports dynamic 3 types of preset
+        /// - age1to10
+        /// - 3weeks, 3months, 3years, fulllife
+        /// - 1990-2000
+        /// given a nice human time range will generate start and end times
+        /// input user's current timezone, could be different from birth
+        /// </summary>
+        /// <param name="outputTimezone">"+08:00"</param>
+        public static TimeRange AutoCalculateTimeRange(Time inputBirthTime, string timePreset, TimeSpan outputTimezone)
+        {
+            var birthDateMonthYear = inputBirthTime.DateMonthYear;
+
+            //note the use of system timezone and not birth timezone
+            //birth time is adjusted to show for clients timezone
+            var birthTimeStr = $"00:00 {birthDateMonthYear} {Tools.GetSystemTimezoneStr()}";
+            var birthTimeClient = new Time(birthTimeStr, inputBirthTime.GetGeoLocation());
+
+            var birthLocation = inputBirthTime.GetGeoLocation();
+
+            Time start, end;
+            //use the inputed user's timezone
+            DateTimeOffset now = DateTimeOffset.Now.ToOffset(outputTimezone);
+            var today = now.ToString("dd/MM/yyyy zzz");
+
+            var yesterday = now.AddDays(-1).ToString("dd/MM/yyyy zzz");
+            var timePresetString = timePreset.ToLower(); //so that all cases are accepted
+
+            //PRESET A = 3days,
+            //PRESET B = 1990 - 2000
+            //get type of preset
+            var isPresetB = timePresetString.Contains("-"); //if has hyphen than must be time range
+            var isPresetC = timePresetString.Contains("to"); //age5to10
+
+            TimeRange returnValue;
+
+            //process 1990-2000
+            if (isPresetB) { returnValue = ProcessPresetTypeB(); }
+
+            //when preset is age1to50
+            else if (isPresetC) { returnValue = ProcessPresetTypeC(); }
+
+            //A type is default processing, if not B or C must A then
+            //3days, 2years, this week, full life
+            else { returnValue = ProcessPresetTypeA(); }
+
+
+            return returnValue;
+
+
+            //process 3days, 2years, this week, full life
+            TimeRange ProcessPresetTypeA()
+            {
+
+                //NOTE:
+                //two possible name types for 6months and "thismonth"
+                //so if got number infront then different handle
+                //assume input is "3days", number + date type
+                //so split by number
+                var split = Tools.SplitAlpha(timePresetString);
+                var result = int.TryParse(split[0], out int number);
+                number = number < 1 ? 1 : number; //min 1, so user can in put just, "year" and except 1 year
+                                                  //if no number, than data type in 1st place
+                var dateType = result ? split[1] : split[0];
+
+
+                //process accordingly
+                int days;
+                double hoursToAdd;
+                string _1WeekAgo = now.AddDays(-7).ToString("dd/MM/yyyy zzz");
+                string _2MonthsAgo = now.AddDays(-60).ToString("dd/MM/yyyy zzz");
+                string _3MonthsAgo = now.AddDays(-90).ToString("dd/MM/yyyy zzz");
+                string _6MonthsAgo = now.AddDays(-182).ToString("dd/MM/yyyy zzz");
+                string _1YearAgo = now.AddDays(-365).ToString("dd/MM/yyyy zzz");
+                var timeNow = Time.NowSystem(birthLocation);
+                switch (dateType.ToLower())
+                {
+                    case "hour":
+                    case "hours":
+                        var startHour = now.AddHours(-1); //back 1 hour
+                        var endHour = now.AddHours(number); //front by input
+                        start = new Time(startHour, birthLocation);
+                        end = new Time(endHour, birthLocation);
+                        return new TimeRange(start, end);
+                    case "today":
+                    case "day":
+                    case "days":
+                        hoursToAdd = Tools.DaysToHours(number); //convert DAYS to HOURS
+                        var startDays = now.RemoveHours(hoursToAdd); //back by input
+                        var endDays = now.AddHours(hoursToAdd); //front by input
+                        start = new Time(startDays, birthLocation);
+                        end = new Time(endDays, birthLocation);
+                        return new TimeRange(start, end);
+                    case "week":
+                    case "weeks":
+                        hoursToAdd = Tools.WeeksToHours(number);
+                        start = timeNow.RemoveHours(hoursToAdd);
+                        end = timeNow.AddHours(hoursToAdd); //+the days
+                        return new TimeRange(start, end);
+                    case "month":
+                    case "months":
+                        hoursToAdd = Tools.MonthsToHours(number);
+                        start = timeNow.RemoveHours(hoursToAdd);
+                        end = timeNow.AddHours(hoursToAdd);
+                        return new TimeRange(start, end);
+                    case "year":
+                    case "years":
+                        hoursToAdd = Tools.YearsToHours(number);
+                        start = timeNow.RemoveHours(hoursToAdd);
+                        end = timeNow.AddHours(hoursToAdd);
+                        return new TimeRange(start, end);
+                    case "decades":
+                    case "decade":
+                        hoursToAdd = Tools.DecadesToHours(number);
+                        start = timeNow.RemoveHours(hoursToAdd);
+                        end = timeNow.AddHours(hoursToAdd);
+                        return new TimeRange(start, end);
+                    case "fulllife":
+                        start = birthTimeClient;
+                        end = birthTimeClient.AddYears(75);
+                        return new TimeRange(start, end);
+                    default:
+                        return new TimeRange(Time.Empty, Time.Empty);
+
+                }
+            }
+
+            //process age1to50
+            TimeRange ProcessPresetTypeC()
+            {
+
+                //age 1 to 50
+                var split = Tools.SplitAlpha(timePresetString);
+
+                var startAge = int.Parse(split[1]);
+                var endAge = int.Parse(split[3]);
+
+                //if age 1 set to 0, because in common talk age 1 is same as birth year, nobody says age 0
+                startAge = startAge == 1 ? 0 : startAge;
+
+                //add to birth time to get final time range
+                start = birthTimeClient.AddYears(startAge);
+                end = birthTimeClient.AddYears(endAge);
+                return new TimeRange(start, end);
+
+            }
+
+            //process 1990-2000
+            TimeRange ProcessPresetTypeB()
+            {
+                //break into start & end year
+                var splited = timePresetString.Split('-');
+
+                //get year
+                var startYear = splited[0];
+                var endYear = splited[1];
+
+                //timezone to construct new time for client time
+                var timeZone = now.ToString("zzz");
+
+                //create time at start and end of year
+                var startTime = new Time($"00:00 01/01/{startYear} {timeZone}", birthLocation);
+                var endTime = new Time($"00:00 31/12/{endYear} {timeZone}", birthLocation);
+
+                return new TimeRange(startTime, endTime);
+
+            }
+        }
+
+        /// <summary>
+        /// Give a time preset (3 types), will return days between them
+        /// NOTE: used by web UI via API for chart precision calculation
+        /// </summary>
+        public static double DaysBetweenTimeRangePreset(Time inputBirthTime, string timePreset, TimeSpan outputTimezone)
+        {
+            //get time range from given data
+            var timeRange = Calculate.AutoCalculateTimeRange(inputBirthTime, timePreset, outputTimezone);
+
+            //calculate days between
+            var daysBetween = Math.Round(timeRange.DaysBetween, 2);
+
+            return daysBetween;
+        }
 
         /// <summary>
         /// As the name suggests, Ghataka chakra is seen for any kind of injuries,
@@ -3020,6 +3995,7 @@ namespace VedAstro.Library
         /// For the first instance, the inopportune time can be seen from the horoscope of the
         /// moment of occurance of the event and for the latter case, the same can be seen from
         /// the horoscope of the person inflicting pain and injury.
+        /// Source : https://studylib.net/doc/27493638/secrets-of-ghataka-chakra
         /// </summary>
         public static List<string> GhatakaChakra(Time time, Time birthTime)
         {
@@ -3215,8 +4191,6 @@ namespace VedAstro.Library
 
         }
 
-
-
         /// <summary>
         /// Gets all houses owned by a planet at a given time 
         /// </summary>
@@ -3228,14 +4202,12 @@ namespace VedAstro.Library
             //given a Zodiac Sign, return, House Number (or Cusp number as its actually called)
             var houseList = new List<HouseName>();
 
-
             //get signs of all houses
-            var houseSigns = Calculate.AllHouseSign(time);
+            var houseSigns = Calculate.AllHouseZodiacSigns(time);
 
 
             foreach (var zodiacName in signsOwned)
             {
-
                 //get all houses that have inputed zodiac name
                 List<HouseName> matchingHouses = houseSigns
                     .Where(pair => pair.Value.GetSignName() == zodiacName)
@@ -3258,7 +4230,7 @@ namespace VedAstro.Library
         {
             //get signs for all houses
             //TODO cache down
-            var houses = Calculate.AllHouseSign(inputTime);
+            var houses = Calculate.AllHouseZodiacSigns(inputTime);
 
             //pick out and return only for input sign
             HouseName houseName = houses.Where(e => e.Value.GetSignName() == zodiacName).Select(e => e.Key).FirstOrDefault();
@@ -3382,8 +4354,6 @@ namespace VedAstro.Library
 
         }
 
-
-
         /// <summary>
         /// Calculate Fortuna Point for a given birth time & place. Returns Sign Number from Lagna
         /// for KP system a fast-moving point which can differentiate between two early births as twins.
@@ -3391,10 +4361,10 @@ namespace VedAstro.Library
         public static int FortunaPoint(ZodiacName ascZodiacSignName, Time time)
         {
             //Fortune Point is calculated as Asc Degrees + Moon Degrees - Sun Degrees
-            var a1 = Calculate.AllHouseMiddleLongitudes(time)[0].GetBeginLongitude().TotalDegrees;
+            var a1 = Calculate.AllHouseLongitudes(time)[0].GetBeginLongitude().TotalDegrees;
 
             //Find Lagna, Moon and Sun longitude degree
-            var _asc_Degrees = Calculate.AllHouseMiddleLongitudes(time)[0].GetMiddleLongitude().TotalDegrees;
+            var _asc_Degrees = Calculate.AllHouseLongitudes(time)[0].GetMiddleLongitude().TotalDegrees;
             var _moonDegrees = Calculate.PlanetNirayanaLongitude(PlanetName.Moon, time).TotalDegrees;
             var _sunDegrees = Calculate.PlanetNirayanaLongitude(PlanetName.Sun, time).TotalDegrees;
 
@@ -3606,23 +4576,22 @@ namespace VedAstro.Library
         /// </summary>
         public static async Task<string> SkyChart(Time time) => await SkyChartFactory.GenerateChart(time, 750, 230);
 
-
         /// <summary>
-        /// Get sky chart at a given time. SVG image file. URL can be used like a image source link
+        /// Creates a kundali chart from D1 to D20. In south indian style. URL can be used like a SVG image source link
         /// </summary>
-        public static string SouthIndianChart(Time time, ChartType chartType = ChartType.Rasi)
+        public static string SouthIndianChart(Time time, ChartType chartType = ChartType.RasiD1)
         {
-            var svgString = (new SouthChartFactory(time, 1000, 1000, chartType)).SVGChart;
+            var svgString = (new SouthChartFactory(time, chartType)).SVGChart;
 
             return svgString;
         }
 
         /// <summary>
-        /// Get sky chart at a given time. SVG image file. URL can be used like a image source link
+        /// Creates a kundali chart from D1 to D20. In north indian style. URL can be used like a SVG image source link
         /// </summary>
-        public static string NorthIndianChart(Time time)
+        public static string NorthIndianChart(Time time, ChartType chartType = ChartType.RasiD1)
         {
-            var svgString = NorthChartFactory.GenerateChart(time, 1000, 1000);
+            var svgString = (new NorthChartFactory(time, chartType)).SVGChart;
 
             return svgString;
         }
@@ -3666,63 +4635,6 @@ namespace VedAstro.Library
 
             //todo from PG15 of Bhava and Graha Balas
             throw new NotImplementedException("");
-        }
-
-        /// <summary>
-        /// Converts time back to longitude, it is the reverse of GetLocalTimeOffset in Time
-        /// Exp :  5h. 10m. 20s. E. Long. to 77° 35' E. Long
-        /// </summary>
-        public static Angle TimeToLongitude(TimeSpan time)
-        {
-            //TODO function is a candidate for caching
-            //degrees is equivalent to hours
-            var totalDegrees = time.TotalHours * 15;
-
-            return Angle.FromDegrees(totalDegrees);
-        }
-
-        //NORMAL FUNCTIONS
-        //FUNCTIONS THAT CALL OTHER FUNCTIONS IN THIS CLASS
-
-        /// <summary>
-        /// Gets the ephemris time that is consumed by Swiss Ephemeris
-        /// Converts normal time to Ephemeris time shown as a number
-        /// </summary>
-        public static double TimeToEphemerisTime(Time time)
-        {
-
-            //CACHE MECHANISM
-            return CacheManager.GetCache(new CacheKey(nameof(TimeToEphemerisTime), time, Ayanamsa), _timeToEphemerisTime);
-
-
-            //UNDERLYING FUNCTION
-            double _timeToEphemerisTime()
-            {
-                SwissEph ephemeris = new();
-
-                //set GREGORIAN CALENDAR
-                int gregflag = SwissEph.SE_GREG_CAL;
-
-                //get LMT at UTC (+0:00)
-                DateTimeOffset utcDate = LmtToUtc(time);
-
-                //extract details of time
-                int year = utcDate.Year;
-                int month = utcDate.Month;
-                int day = utcDate.Day;
-                double hour = (utcDate.TimeOfDay).TotalHours;
-
-
-                double jul_day_UT;
-                double jul_day_ET;
-
-                //do conversion to ephemris time
-                jul_day_UT = ephemeris.swe_julday(year, month, day, hour, gregflag); //time to Julian Day
-                jul_day_ET = jul_day_UT + ephemeris.swe_deltat(jul_day_UT); //Julian Day to ET
-
-                return jul_day_ET;
-            }
-
         }
 
         /// <summary>
@@ -3914,7 +4826,7 @@ namespace VedAstro.Library
             Angle sunLongitude = PlanetNirayanaLongitude(Sun, time);
             Angle moonLongitude = PlanetNirayanaLongitude(Moon, time);
 
-            var jointLongitudeInMinutes = (sunLongitude + moonLongitude).Expunge360().TotalMinutes;
+            var jointLongitudeInMinutes = (sunLongitude + moonLongitude).Normalize360().TotalMinutes;
 
             //get joint motion in longitude of the Sun and the Moon
             //var jointLongitudeInMinutes = sunLongitude.TotalMinutes + moonLongitude.TotalMinutes;
@@ -4224,12 +5136,42 @@ namespace VedAstro.Library
         }
 
         /// <summary>
+        /// Gets the middle longitude of house 1 to house 12
+        /// using Swiss Epehemris swe_houses
+        /// </summary>
+        public static double[] GetAllHouseNirayanaMiddleLongitudes(Time time)
+        {
+            int iflag = SwissEph.SEFLG_SIDEREAL;
+
+            //get location at place of time
+            var location = time.GetGeoLocation();
+
+            //Convert DOB to Julian Day
+            var jul_day_UT = TimeToJulianUniversalTime(time);
+
+            SwissEph swissEph = new SwissEph();
+
+            swissEph.swe_set_sid_mode(Ayanamsa, 0, 0);
+
+            double[] cusps = new double[13];
+            //we have to supply ascmc to make the function run
+            double[] ascmc = new double[10];
+
+            //Note: using Placidus house system to match Raphael's Ephemeris, as used in Raman's books
+            swissEph.swe_houses_ex(jul_day_UT, iflag, location.Latitude(), location.Longitude(), 'P', cusps, ascmc);
+
+            //we only return cusps, cause that is what is used
+            return cusps;
+
+        }
+
+        /// <summary>
         /// Gives the middle longitude of all houses at a give time
         /// </summary>
-        public static List<House> AllHouseMiddleLongitudes(Time time)
+        public static List<House> AllHouseLongitudes(Time time)
         {
             //CACHE MECHANISM
-            return CacheManager.GetCache(new CacheKey(nameof(AllHouseMiddleLongitudes), time, Ayanamsa), _getHouses);
+            return CacheManager.GetCache(new CacheKey(nameof(AllHouseLongitudes), time, Ayanamsa), _getHouses);
 
 
             //UNDERLYING FUNCTION
@@ -4255,20 +5197,13 @@ namespace VedAstro.Library
                 //1.1 get House 1 & 10
 
                 //Get western 1 & 10 house longitudes
-                var cusps = GetHouse1And10Longitudes(time);
+                var cusps = GetAllHouseNirayanaMiddleLongitudes(time);
 
                 //Get Sayana Long. of cusp of ascend.
-                var sayanaCuspOfHouse1 = Angle.FromDegrees(cusps[1]);
+                var udayaLagna = Angle.FromDegrees(cusps[1]);
 
                 //Get Sayana Long. of cusp of tenth-house
-                var sayanaCuspOfHouse10 = Angle.FromDegrees(cusps[10]);
-
-                //Deduct from these two, the Ayanamsa to get the Nirayana longitudes
-                // of Udaya Lagna (Ascendant) and the Madhya Lagna (Upper Meridian)
-                var ayanamsa = AyanamsaDegree(time);
-
-                var udayaLagna = sayanaCuspOfHouse1 - ayanamsa;
-                var madhyaLagna = sayanaCuspOfHouse10 - ayanamsa;
+                var madhyaLagna = Angle.FromDegrees(cusps[10]);
 
                 //Add 180° to each of these two, to get the Nirayana Asta Lagna (Western Horizon)
                 //and the Pathala Lagna (Lower Meridian)
@@ -4276,83 +5211,46 @@ namespace VedAstro.Library
                 var pathalaLagna = madhyaLagna + Angle.Degrees180;
 
                 //if longitude is more than 360°, expunge 360°
-                astaLagna = astaLagna.Expunge360();
-                pathalaLagna = pathalaLagna.Expunge360();
+                astaLagna = astaLagna.Normalize360();
+                pathalaLagna = pathalaLagna.Normalize360();
 
                 //assign angular house middle longitudes, houses 1,4,7,10
-                house1MiddleLongitude = udayaLagna + Angle.FromDegrees(15);
-                house4MiddleLongitude = pathalaLagna + Angle.FromDegrees(15);
-                house7MiddleLongitude = astaLagna + Angle.FromDegrees(15);
-                house10MiddleLongitude = madhyaLagna + Angle.FromDegrees(15);
+                house1MiddleLongitude = udayaLagna;
+                house4MiddleLongitude = pathalaLagna;
+                house7MiddleLongitude = astaLagna;
+                house10MiddleLongitude = madhyaLagna;
 
                 //2.0 Get middle longitudes of non-angular houses
                 //2.1 Calculate arcs
-                Angle arcA, arcB, arcC, arcD;
-
-                //calculate Arc A
-                if (house4MiddleLongitude < house1MiddleLongitude)
-                {
-                    arcA = ((house4MiddleLongitude + Angle.Degrees360) - house1MiddleLongitude);
-                }
-                else
-                {
-                    arcA = (house4MiddleLongitude - house1MiddleLongitude);
-                }
-
-                //calculate Arc B
-                if (house7MiddleLongitude < house4MiddleLongitude)
-                {
-                    arcB = ((house7MiddleLongitude + Angle.Degrees360) - house4MiddleLongitude);
-                }
-                else
-                {
-                    arcB = (house7MiddleLongitude - house4MiddleLongitude);
-                }
-
-                //calculate Arc C
-                if (house10MiddleLongitude < house7MiddleLongitude)
-                {
-                    arcC = ((house10MiddleLongitude + Angle.Degrees360) - house7MiddleLongitude);
-                }
-                else
-                {
-                    arcC = (house10MiddleLongitude - house7MiddleLongitude);
-                }
-
-                //calculate Arc D
-                if (house1MiddleLongitude < house10MiddleLongitude)
-                {
-                    arcD = ((house1MiddleLongitude + Angle.Degrees360) - house10MiddleLongitude);
-                }
-                else
-                {
-                    arcD = (house1MiddleLongitude - house10MiddleLongitude);
-                }
+                Angle arcA = GetArc(house1MiddleLongitude, house4MiddleLongitude);
+                Angle arcB = GetArc(house4MiddleLongitude, house7MiddleLongitude);
+                Angle arcC = GetArc(house7MiddleLongitude, house10MiddleLongitude);
+                Angle arcD = GetArc(house10MiddleLongitude, house1MiddleLongitude);
 
                 //2.2 Trisect each arc
                 //Cacl House 2 & 3
                 house2MiddleLongitude = house1MiddleLongitude + arcA.Divide(3);
-                house2MiddleLongitude = house2MiddleLongitude.Expunge360();
+                house2MiddleLongitude = house2MiddleLongitude.Normalize360();
                 house3MiddleLongitude = house2MiddleLongitude + arcA.Divide(3);
-                house3MiddleLongitude = house3MiddleLongitude.Expunge360();
+                house3MiddleLongitude = house3MiddleLongitude.Normalize360();
 
                 //Cacl House 5 & 6
                 house5MiddleLongitude = house4MiddleLongitude + arcB.Divide(3);
-                house5MiddleLongitude = house5MiddleLongitude.Expunge360();
+                house5MiddleLongitude = house5MiddleLongitude.Normalize360();
                 house6MiddleLongitude = house5MiddleLongitude + arcB.Divide(3);
-                house6MiddleLongitude = house6MiddleLongitude.Expunge360();
+                house6MiddleLongitude = house6MiddleLongitude.Normalize360();
 
                 //Cacl House 8 & 9
                 house8MiddleLongitude = house7MiddleLongitude + arcC.Divide(3);
-                house8MiddleLongitude = house8MiddleLongitude.Expunge360();
+                house8MiddleLongitude = house8MiddleLongitude.Normalize360();
                 house9MiddleLongitude = house8MiddleLongitude + arcC.Divide(3);
-                house9MiddleLongitude = house9MiddleLongitude.Expunge360();
+                house9MiddleLongitude = house9MiddleLongitude.Normalize360();
 
                 //Cacl House 11 & 12
                 house11MiddleLongitude = house10MiddleLongitude + arcD.Divide(3);
-                house11MiddleLongitude = house11MiddleLongitude.Expunge360();
+                house11MiddleLongitude = house11MiddleLongitude.Normalize360();
                 house12MiddleLongitude = house11MiddleLongitude + arcD.Divide(3);
-                house12MiddleLongitude = house12MiddleLongitude.Expunge360();
+                house12MiddleLongitude = house12MiddleLongitude.Normalize360();
 
                 //3.0 Calculate house begin & end longitudes
 
@@ -4390,6 +5288,18 @@ namespace VedAstro.Library
 
             }
 
+        }
+
+        /// <summary>
+        /// Calculates the arc between two longitudes, considering the circular zodiac.
+        /// </summary>
+        private static Angle GetArc(Angle from, Angle to)
+        {
+            if (to < from)
+            {
+                to += Angle.Degrees360;
+            }
+            return (to - from).Normalize360();
         }
 
         /// <summary>
@@ -4577,7 +5487,7 @@ namespace VedAstro.Library
             var listOfPlanetInHouse = new List<PlanetName>();
 
             //get all houses
-            var houseList = AllHouseMiddleLongitudes(time);
+            var houseList = AllHouseLongitudes(time);
 
             //find house that matches input house number
             var house = houseList.Find(h => h.GetHouseName() == houseNumber);
@@ -4639,7 +5549,7 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Gets the Nirayana longitude of all 9 planets
+        /// Gets the Nirayana longitude of all 9 planets (corrected with Ayanamsa)
         /// </summary>
         public static List<PlanetLongitude> AllPlanetLongitude(Time time)
         {
@@ -4730,14 +5640,15 @@ namespace VedAstro.Library
 
         /// <summary>
         /// Gets the House number a given planet is in at a time
+        /// based on house longitudes NOT sign
         /// </summary>
-        public static HouseName HousePlanetOccupies(PlanetName planetName, Time time)
+        public static HouseName HousePlanetOccupiesBasedOnLongitudes(PlanetName planetName, Time time)
         {
             //get the planets longitude
             var planetLongitude = PlanetNirayanaLongitude(planetName, time);
 
             //get all houses
-            var houseList = AllHouseMiddleLongitudes(time);
+            var houseList = AllHouseLongitudes(time);
 
             //loop through all houses
             foreach (var house in houseList)
@@ -4759,40 +5670,35 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// List of all planets and the houses they are located in at a given time based on zodiac sign.
+        /// Gets the House number a given planet is in at a time
+        /// based on house sign NOT longitude
         /// </summary>
-        public static Dictionary<PlanetName, HouseName> HouseAllPlanetOccupiesBasedOnSign(Time time)
+        public static HouseName HousePlanetOccupiesBasedOnSign(PlanetName planetName, Time time)
         {
-            //get all the signs of the planets
-            var planetSigns = Calculate.AllPlanetSigns(time);
+            // Get the sign of the planet
+            var planetSign = Calculate.PlanetZodiacSign(planetName, time);
 
-            //get all signs of houses at middle longitude 
-            var houseSigns = Calculate.AllHouseSign(time);
+            // Get all signs of houses at middle longitude
+            var houseSigns = Calculate.AllHouseZodiacSigns(time);
 
-            //make new list combined data
-            var returnList = new Dictionary<PlanetName, HouseName>();
-            foreach (var planet in PlanetName.All9Planets)
-            {
-                var planetSign = planetSigns[planet];
+            // Find the house with the matching sign
+            var foundHouse = houseSigns.Where(yy => yy.Value.GetSignName() == planetSign.GetSignName()).FirstOrDefault();
 
-                var foundHouse = houseSigns.Where(yy => yy.Value.GetSignName() == planetSign.GetSignName()).FirstOrDefault();
+            // Return the house name
+            return foundHouse.Key;
 
-                returnList.Add(planet, foundHouse.Key);
-            }
-
-            return returnList;
         }
 
         /// <summary>
         /// List of all planets and the houses they are located in at a given time
         /// </summary>
-        public static Dictionary<PlanetName, HouseName> HouseAllPlanetOccupies(Time time)
+        public static Dictionary<PlanetName, HouseName> HouseAllPlanetOccupiesBasedOnLongitudes(Time time)
         {
             var returnList = new Dictionary<PlanetName, HouseName>();
 
             foreach (var planet in PlanetName.All9Planets)
             {
-                var houseIsIn = HousePlanetOccupies(planet, time);
+                var houseIsIn = HousePlanetOccupiesBasedOnLongitudes(planet, time);
                 returnList.Add(planet, houseIsIn);
             }
 
@@ -4862,63 +5768,6 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Checks if the inputed sign was the sign of the house during the inputed time
-        /// </summary>
-        public static bool IsHouseSignName(HouseName house, ZodiacName sign, Time time) => HouseSignName(house, time) == sign;
-
-        /// <summary>
-        /// Gets only the the zodiac sign name at middle longitude of the house.
-        /// </summary>
-        public static ZodiacName HouseSignName(HouseName houseNumber, Time time)
-        {
-            //if empty return aries, can't give empty because no Empty for ZodiacName
-            if (houseNumber == HouseName.Empty) { return ZodiacName.Aries; }
-
-            //get full sign data
-            var zodiacSign = Calculate.HouseZodiacSign(houseNumber, time);
-
-            //only return name
-            return zodiacSign.GetSignName();
-        }
-
-        /// <summary>
-        /// Gets the zodiac sign at middle longitude of the house with degrees data
-        /// </summary>
-        public static ZodiacSign HouseZodiacSign(HouseName houseNumber, Time time)
-        {
-            //get all houses
-            var allHouses = AllHouseMiddleLongitudes(time);
-
-            //get the house specified 
-            var specifiedHouse = allHouses.Find(house => house.GetHouseName() == houseNumber);
-
-            //get sign of the specified house
-            var middleLongitude = specifiedHouse.GetMiddleLongitude();
-            var houseSign = ZodiacSignAtLongitude(middleLongitude);
-
-            //return the name of house sign
-            return houseSign;
-        }
-
-        /// <summary>
-        /// Gets the zodiac sign at middle longitude of the house.
-        /// </summary>
-        public static Dictionary<HouseName, ZodiacSign> AllHouseSign(Time time)
-        {
-            //get all houses
-            var allHouses = new Dictionary<HouseName, ZodiacSign>();
-
-            //get for all houses
-            foreach (var house in Library.House.AllHouses)
-            {
-                var calcHouseSign = Calculate.HouseZodiacSign(house, time);
-                allHouses.Add(house, calcHouseSign);
-            }
-
-            return allHouses;
-        }
-
-        /// <summary>
         /// For all houses. 
         /// Calculate Lord of Star (Constellation) given Constellation. Returns Star Lord Name
         /// TODO MARKED FOR OBLIVION CHECK WITH CP JOIS
@@ -4962,17 +5811,12 @@ namespace VedAstro.Library
         public static Constellation HouseConstellation(HouseName houseNumber, Time time)
         {
             //get all houses
-            var allHouses = AllHouseMiddleLongitudes(time);
+            var allHouses = AllHouseLongitudes(time);
 
             //get the house specified 
             var specifiedHouse = allHouses.Find(house => house.GetHouseName() == houseNumber);
 
             //get sign of the specified house
-            //Note :
-            //When the middle longitude has just entered a new sign,
-            //rounding the longitude shows better accuracy.
-            //Example, with middle longitude 90.4694, becomes Cancer (0°28'9"),
-            //but predictive results points to Gemini (30°0'0"), so rounding is implemented
             var middleLongitude = specifiedHouse.GetMiddleLongitude();
             var houseConstellation = ConstellationAtLongitude(middleLongitude);
 
@@ -4981,7 +5825,7 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Gets the zodiac sign at middle longitude of the house.
+        /// Gets all the planets in a house based on a sign
         /// </summary>
         public static Dictionary<HouseName, List<PlanetName>> AllHousePlanetsInHouseBasedOnSign(Time time)
         {
@@ -4998,71 +5842,6 @@ namespace VedAstro.Library
             return allHouses;
         }
 
-        /// <summary>
-        /// Gets Navamsa sign given a longitude
-        /// </summary>
-        public static ZodiacName NavamsaSignNameFromLongitude(Angle longitude)
-        {
-            //1.0 Get ordinary zodiac sign name
-            //get ordinary zodiac sign
-            var ordinarySign = ZodiacSignAtLongitude(longitude);
-
-            //get name of ordinary sign
-            var ordinarySignName = ordinarySign.GetSignName();
-
-            //2.0 Get first navamsa sign
-            ZodiacName firstNavamsa;
-
-            switch (ordinarySignName)
-            {
-                //Aries, Leo, Sagittarius - from Aries.
-                case ZodiacName.Aries:
-                case ZodiacName.Leo:
-                case ZodiacName.Sagittarius:
-                    firstNavamsa = ZodiacName.Aries;
-                    break;
-                //Taurus, Capricorn, Virgo - from Capricorn.
-                case ZodiacName.Taurus:
-                case ZodiacName.Capricorn:
-                case ZodiacName.Virgo:
-                    firstNavamsa = ZodiacName.Capricorn;
-                    break;
-                //Gemini, Libra, Aquarius - from Libra.
-                case ZodiacName.Gemini:
-                case ZodiacName.Libra:
-                case ZodiacName.Aquarius:
-                    firstNavamsa = ZodiacName.Libra;
-                    break;
-                //Cancer, Scorpio, Pisces - from Cancer.
-                case ZodiacName.Cancer:
-                case ZodiacName.Scorpio:
-                case ZodiacName.Pisces:
-                    firstNavamsa = ZodiacName.Cancer;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            //3.0 Get the number of the navamsa currently in
-            //get degrees in ordinary sign
-            var degreesInOrdinarySign = ordinarySign.GetDegreesInSign();
-
-            //declare length of a navamsa in the ecliptic arc
-            const double navamsaLenghtInDegrees = 3.333333333;
-
-            //divide total degrees in current sign to get raw navamsa number
-            var rawNavamsaNumber = degreesInOrdinarySign.TotalDegrees / navamsaLenghtInDegrees;
-
-            //round the raw number to get current navamsa number
-            var navamsaNumber = (int)Math.Ceiling(rawNavamsaNumber);
-
-            //4.0 Get navamsa sign
-            //count from first navamsa sign
-            ZodiacName signAtNavamsa = SignCountedFromInputSign(firstNavamsa, navamsaNumber);
-
-            return signAtNavamsa;
-
-        }
 
         /// <summary>
         /// Exp : Get 4th sign from Cancer
@@ -5087,15 +5866,6 @@ namespace VedAstro.Library
         /// Exp : Get 4th sign from Moon
         /// </summary>
         public static ZodiacName SignCountedFromPlanetSign(int countToNextSign, PlanetName startPlanet, Time inputTime)
-        {
-            var planetSignName = PlanetZodiacSign(startPlanet, inputTime).GetSignName();
-            return SignCountedFromInputSign(planetSignName, countToNextSign);
-        }
-
-        /// <summary>
-        /// Exp : Get 4th sign from Saturn
-        /// </summary>
-        public static ZodiacName SignCountedFromPlanetSign(int countToNextSign, Time inputTime, PlanetName startPlanet)
         {
             var planetSignName = PlanetZodiacSign(startPlanet, inputTime).GetSignName();
             return SignCountedFromInputSign(planetSignName, countToNextSign);
@@ -5136,19 +5906,7 @@ namespace VedAstro.Library
             return currentSign == signInput;
         }
 
-        /// <summary>
-        /// Get Navamsa sign of planet at a given time
-        /// </summary>
-        public static ZodiacName PlanetNavamsaSign(PlanetName planetName, Time time)
-        {
-            //get planets longitude
-            var planetLongitude = PlanetNirayanaLongitude(planetName, time);
 
-            //get navamsa sign at longitude
-            var navamsaSignOfPlanet = NavamsaSignNameFromLongitude(planetLongitude);
-
-            return navamsaSignOfPlanet;
-        }
 
         /// <summary>
         /// Gives a list of all zodiac signs a specified planet is aspecting
@@ -5246,217 +6004,6 @@ namespace VedAstro.Library
 
             return planetSignList;
 
-        }
-
-        /// <summary>
-        /// Get navamsa sign of house (mid point)
-        /// TODO: Checking for correctness needed
-        /// </summary>
-        public static ZodiacName HouseNavamsaSign(HouseName house, Time time)
-        {
-            //if empty return Aries
-            if (house == HouseName.Empty) { return ZodiacName.Aries; }
-
-            //get all houses
-            var allHouseList = AllHouseMiddleLongitudes(time);
-
-            //get house mid longitude
-            var houseMiddleLongitude = allHouseList.Find(hs => hs.GetHouseName() == house).GetMiddleLongitude();
-
-            //get navamsa house sign at house mid longitude
-            var navamsaSign = NavamsaSignNameFromLongitude(houseMiddleLongitude);
-
-            return navamsaSign;
-        }
-
-        /// <summary>
-        /// Get Thrimsamsa sign of house (mid point)
-        /// </summary>
-        public static ZodiacName PlanetThrimsamsaSign(PlanetName planetName, Time time)
-        {
-            //get sign planet is in
-            var planetSign = PlanetZodiacSign(planetName, time);
-
-            //get planet sign name
-            var planetSignName = planetSign.GetSignName();
-
-            //get degrees in sign 
-            var degreesInSign = planetSign.GetDegreesInSign().TotalDegrees;
-
-            //declare const number for Thrimsamsa calculation
-            const double maxThrimsamsaDegrees = 1; // 30/1
-            const double maxSignDegrees = 30.0;
-
-            //get rough Thrimsamsa number
-            double roughThrimsamsaNumber = (degreesInSign % maxSignDegrees) / maxThrimsamsaDegrees;
-
-            //get rounded saptamsa number
-            var thrimsamsaNumber = (int)Math.Ceiling(roughThrimsamsaNumber);
-
-            //if planet is in odd sign
-            if (IsOddSign(planetSignName))
-            {
-                //1,2,3,4,5 - Mars
-                if (thrimsamsaNumber >= 0 && thrimsamsaNumber <= 5)
-                {
-                    //Aries and Scorpio are ruled by Mars
-                    return ZodiacName.Scorpio;
-                }
-                //6,7,8,9,10 - saturn
-                if (thrimsamsaNumber >= 6 && thrimsamsaNumber <= 10)
-                {
-                    //Capricorn and Aquarius by Saturn.
-                    return ZodiacName.Capricorn;
-
-                }
-                //11,12,13,14,15,16,17,18 - jupiter
-                if (thrimsamsaNumber >= 11 && thrimsamsaNumber <= 18)
-                {
-                    //Sagittarius and Pisces by Jupiter
-                    return ZodiacName.Sagittarius;
-
-                }
-                //19,20,21,22,23,24,25 - mercury
-                if (thrimsamsaNumber >= 19 && thrimsamsaNumber <= 25)
-                {
-                    //Gemini and Virgo by Mercury
-                    return ZodiacName.Gemini;
-                }
-                //26,27,28,29,30 - venus
-                if (thrimsamsaNumber >= 26 && thrimsamsaNumber <= 30)
-                {
-                    //Taurus and Libra by Venus;
-                    return ZodiacName.Taurus;
-                }
-
-            }
-
-            //if planet is in even sign
-            if (IsEvenSign(planetSignName))
-            {
-                //1,2,3,4,5 - venus
-                if (thrimsamsaNumber >= 0 && thrimsamsaNumber <= 5)
-                {
-                    //Taurus and Libra by Venus;
-                    return ZodiacName.Taurus;
-                }
-                //6,7,8,9,10,11,12 - mercury
-                if (thrimsamsaNumber >= 6 && thrimsamsaNumber <= 12)
-                {
-                    //Gemini and Virgo by Mercury
-                    return ZodiacName.Gemini;
-                }
-                //13,14,15,16,17,18,19,20 - jupiter
-                if (thrimsamsaNumber >= 13 && thrimsamsaNumber <= 20)
-                {
-                    //Sagittarius and Pisces by Jupiter
-                    return ZodiacName.Sagittarius;
-
-                }
-                //21,22,23,24,25 - saturn
-                if (thrimsamsaNumber >= 21 && thrimsamsaNumber <= 25)
-                {
-                    //Capricorn and Aquarius by Saturn.
-                    return ZodiacName.Capricorn;
-
-                }
-                //26,27,28,29,30 - Mars
-                if (thrimsamsaNumber >= 26 && thrimsamsaNumber <= 30)
-                {
-                    //Aries and Scorpio are ruled by Mars
-                    return ZodiacName.Scorpio;
-                }
-
-            }
-
-            throw new Exception("Thrimsamsa not found, error!");
-        }
-
-        /// <summary>
-        /// When a sign is divided into 12 equal parts each is called a dwadasamsa and measures 2.5 degrees.
-        /// The Bhachakra can thus he said to contain 12x12=144 Dwadasamsas. The lords of the 12
-        /// Dwadasamsas in a sign are the lords of the 12 signs from it, i.e.,
-        /// the lord of the first Dwadasamsa in Mesha is Kuja, that of the second Sukra and so on.
-        /// </summary>
-        public static ZodiacName PlanetDwadasamsaSign(PlanetName planetName, Time time)
-        {
-            //get sign planet is in
-            var planetSign = PlanetZodiacSign(planetName, time);
-
-            //get planet sign name
-            var planetSignName = planetSign.GetSignName();
-
-            //get degrees in sign 
-            var degreesInSign = planetSign.GetDegreesInSign().TotalDegrees;
-
-            //declare const number for Dwadasamsa calculation
-            const double maxDwadasamsaDegrees = 2.5; // 30/12
-            const double maxSignDegrees = 30.0;
-
-            //get rough Dwadasamsa number
-            double roughDwadasamsaNumber = (degreesInSign % maxSignDegrees) / maxDwadasamsaDegrees;
-
-            //get rounded Dwadasamsa number
-            var dwadasamsaNumber = (int)Math.Ceiling(roughDwadasamsaNumber);
-
-            //get Dwadasamsa sign from counting with Dwadasamsa number
-            var dwadasamsaSign = SignCountedFromInputSign(planetSignName, dwadasamsaNumber);
-
-            return dwadasamsaSign;
-        }
-
-        /// <summary>
-        /// sign is divided into 7 equal parts each is called a Saptamsa and measures 4.28 degrees
-        /// </summary>
-        public static ZodiacName PlanetSaptamsaSign(PlanetName planetName, Time time)
-        {
-            //get sign planet is in
-            var planetSign = PlanetZodiacSign(planetName, time);
-
-            //get planet sign name
-            var planetSignName = planetSign.GetSignName();
-
-            //get degrees in sign 
-            var degreesInSign = planetSign.GetDegreesInSign().TotalDegrees;
-
-            //declare const number for saptamsa calculation
-            const double maxSaptamsaDegrees = 4.285714285714286; // 30/7
-            const double maxSignDegrees = 30.0;
-
-            //get rough saptamsa number
-            double roughSaptamsaNumber = (degreesInSign % maxSignDegrees) / maxSaptamsaDegrees;
-
-            //get rounded saptamsa number
-            var saptamsaNumber = (int)Math.Ceiling(roughSaptamsaNumber);
-
-            //2.0 Get even or odd sign
-
-            //if planet is in odd sign
-            if (IsOddSign(planetSignName))
-            {
-                //convert saptamsa number to zodiac name
-                return SignCountedFromInputSign(planetSignName, saptamsaNumber);
-            }
-
-            //if planet is in even sign
-            if (IsEvenSign(planetSignName))
-            {
-                var countToNextSign = saptamsaNumber + 6;
-                return SignCountedFromInputSign(planetSignName, countToNextSign);
-            }
-
-
-            throw new Exception("Saptamsa not found, error!");
-        }
-
-        public static ZodiacSign PlanetPanchamsaSign(PlanetName planetName, Time time) => Calculate.PanchamsaSignName(Calculate.PlanetZodiacSign(planetName, time));
-
-        public static ZodiacSign PanchamsaSignName(ZodiacSign zodiacSign)
-        {
-            //TODO
-            return new ZodiacSign();
-
-            throw new Exception("END OF LINE!");
         }
 
         /// <summary>
@@ -5934,7 +6481,7 @@ namespace VedAstro.Library
             House _getHouse()
             {
                 //get all house list
-                var allHouses = AllHouseMiddleLongitudes(time);
+                var allHouses = AllHouseLongitudes(time);
 
                 //get required house from list
                 var requiredHouse = allHouses.Find(h => h.GetHouseName() == houseNumber);
@@ -6063,17 +6610,6 @@ namespace VedAstro.Library
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-        }
-
-        /// <summary>
-        /// Convert Local Mean Time (LMT) to Standard Time (STD)
-        /// </summary>
-        public static DateTimeOffset LmtToStd(DateTimeOffset lmtDateTime, TimeSpan stdOffset)
-        {
-            //set lmt to offset
-            //var tempTime = new DateTimeOffset(lmtDateTime);
-
-            return lmtDateTime.ToOffset(stdOffset);
         }
 
 
@@ -6412,7 +6948,7 @@ namespace VedAstro.Library
         public static bool IsPlanetInTrikona(PlanetName planet, Time time)
         {
             //get current planet house
-            var planetHouse = HousePlanetOccupies(planet, time);
+            var planetHouse = HousePlanetOccupiesBasedOnLongitudes(planet, time);
 
             //check if planet is in Trine
             var isPlanetInTrine = planetHouse == HouseName.House1 ||
@@ -6423,16 +6959,18 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Checks if a planet is in a kendra house (1,4,7,10)
+        /// Checks if a planet is in a kendra house (4,7,10)
         /// Equals to "Is Jupiter in Kendra from Lagna"
+        /// Also know as quadrants or angles
+        /// NOTE House 1 not included because follow bv raman's book pg 16 (Astrology for Beginners)
         /// </summary>
         public static bool IsPlanetInKendra(PlanetName planet, Time time)
         {
             //The 4th, the 7th and the 10th are the Kendras
-            var planetHouse = HousePlanetOccupies(planet, time);
+            var planetHouse = HousePlanetOccupiesBasedOnLongitudes(planet, time);
 
             //check if planet is in kendra
-            var isPlanetInKendra = planetHouse == HouseName.House1 || planetHouse == HouseName.House4 || planetHouse == HouseName.House7 || planetHouse == HouseName.House10;
+            var isPlanetInKendra = planetHouse == HouseName.House4 || planetHouse == HouseName.House7 || planetHouse == HouseName.House10;
 
             return isPlanetInKendra;
         }
@@ -6443,7 +6981,7 @@ namespace VedAstro.Library
         public static bool IsPlanetInUpachaya(PlanetName planet, Time time)
         {
             //get current house
-            var planetHouse = HousePlanetOccupies(planet, time);
+            var planetHouse = HousePlanetOccupiesBasedOnLongitudes(planet, time);
 
             //check if planet is in 3rd, 6th, 10th, or 11th
             var isPlanetInUpachayas = planetHouse == HouseName.House3 ||
@@ -6455,8 +6993,10 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Checks if any 1 given planet is in a kendra house (1,4,7,10)
+        /// Checks if any 1 given planet is in a kendra house (4,7,10)
         /// Equals to "Is Jupiter or Venus in Kendra from Lagna"
+        /// Also know as quadrants or angles
+        /// NOTE House 1 not included because follow bv raman's book pg 16 (Astrology for Beginners)
         /// </summary>
         public static bool IsPlanetInKendra(PlanetName[] planetList, Time time)
         {
@@ -6517,7 +7057,7 @@ namespace VedAstro.Library
             var houseLord = LordOfHouse(lordHouse, time);
 
             //get house the lord is in
-            var houseIsIn = HousePlanetOccupies(houseLord, time);
+            var houseIsIn = HousePlanetOccupiesBasedOnLongitudes(houseLord, time);
 
             //if it matches then occuring
             return houseIsIn == occupiedHouse;
@@ -6600,7 +7140,7 @@ namespace VedAstro.Library
         public static bool IsMaleficPlanetInHouse(HouseName houseNumber, Time time)
         {
             //get all the planets in the house
-            var planetsInHouse = PlanetsInHouse(houseNumber, time);
+            var planetsInHouse = PlanetsInHouseBasedOnSign(houseNumber, time);
 
             //get all evil planets
             var evilPlanets = MaleficPlanetList(time);
@@ -6620,7 +7160,7 @@ namespace VedAstro.Library
         public static bool IsBeneficPlanetInHouse(HouseName houseNumber, Time time)
         {
             //get all the planets in the house
-            var planetsInHouse = PlanetsInHouse(houseNumber, time);
+            var planetsInHouse = PlanetsInHouseBasedOnSign(houseNumber, time);
 
             //get all good planets
             var goodPlanets = BeneficPlanetList(time);
@@ -6786,16 +7326,31 @@ namespace VedAstro.Library
         /// <summary>
         /// Checks if a planet is receiving aspects from an evil planet
         /// </summary>
-        public static bool IsPlanetAspectedByMaleficPlanets(PlanetName lord, Time time)
+        public static bool IsPlanetAspectedByMaleficPlanets(PlanetName planetReceivingAspect, Time time)
         {
             //get list of evil planets
             var evilPlanets = MaleficPlanetList(time);
 
             //check if any of the evil planets is aspecting inputed planet
-            var evilAspectFound = evilPlanets.FindAll(evilPlanet =>
-                IsPlanetAspectedByPlanet(lord, evilPlanet, time)).Any();
+            var evilAspectFound = evilPlanets.FindAll(evilPlanet => IsPlanetAspectedByPlanet(planetReceivingAspect, evilPlanet, time)).Any();
             return evilAspectFound;
 
+        }
+
+        /// <summary>
+        /// Returns a list of all malefic planets aspecting the specified receiving planet.
+        /// </summary>
+        public static List<PlanetName> GetAllMaleficPlanetsAspecting(PlanetName planetReceivingAspect, Time time)
+        {
+            // Get the list of malefic planets
+            var maleficPlanets = MaleficPlanetList(time);
+
+            // Filter the list to include only those planets that are aspecting the input planet
+            var maleficPlanetsAspecting = maleficPlanets
+                .Where(maleficPlanet => IsPlanetAspectedByPlanet(planetReceivingAspect, maleficPlanet, time))
+                .ToList();
+
+            return maleficPlanetsAspecting;
         }
 
         /// <summary>
@@ -6973,12 +7528,13 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Checks if a planet is in a given house at a specified time 
+        /// Checks if a planet is in a given house at a specified time, based on longittudes
+        /// Note: use longitudes as specified in BV Raman's ashtakvarga book
         /// </summary>
         /// <param name="houseNumber">house number to check</param>
         public static bool IsPlanetInHouse(PlanetName planet, HouseName houseNumber, Time time)
         {
-            return HousePlanetOccupies(planet, time) == houseNumber;
+            return HousePlanetOccupiesBasedOnLongitudes(planet, time) == houseNumber;
         }
 
         /// <summary>
@@ -7020,7 +7576,7 @@ namespace VedAstro.Library
         /// <summary>
         /// Checks if a planet is in a given house at a specified time 
         /// </summary>
-        public static bool IsAllPlanetInHouse(List<PlanetName> planetList, HouseName houseNumber, Time time)
+        public static bool IsAllPlanetsInHouse(List<PlanetName> planetList, HouseName houseNumber, Time time)
         {
             //calculate each planet, even if 1 planet is out, then return as false
             foreach (var planetName in planetList)
@@ -7034,20 +7590,23 @@ namespace VedAstro.Library
         }
 
         /// <summary>
-        /// Checks if any planet in list is at a given house at a specified time 
+        /// Checks if any one planet in list of planets is in a given house at a specified time, based on sign
         /// </summary>
-        public static bool IsAnyPlanetInHouse(List<PlanetName> planetList, HouseName houseNumber, Time time)
+        /// <param name="houseNumber">house number to check</param>
+        public static bool IsAnyPlanetsInHouse(List<PlanetName> planetList, HouseName houseNumber, Time time)
         {
-            //calculate each planet, even if 1 planet is out, then return as false
             foreach (var planetName in planetList)
             {
-                var tempVal = IsPlanetInHouse(planetName, houseNumber, time);
-                if (tempVal == true) { return true; }
+                if (IsPlanetInHouse(planetName, houseNumber, time))
+                {
+                    return true;
+                }
             }
 
             // if control reaches here then no planet is in house
             return false;
         }
+
 
         /// <summary>
         /// Checks if a planet is in a longitude where it's in Debilitated
@@ -7088,7 +7647,7 @@ namespace VedAstro.Library
         ///     the planet is exalted but in a particular degree
         ///     its exaltation is at the maximum level.
         /// </summary>
-        public static bool IsPlanetExalted(PlanetName planet, Time time)
+        public static bool IsPlanetExaltedDegree(PlanetName planet, Time time)
         {
             //get planet location
             var planetLongitude = PlanetNirayanaLongitude(planet, time);
@@ -7107,6 +7666,41 @@ namespace VedAstro.Library
             var planetIsExaltation = sameSign && sameDegree;
 
             return planetIsExaltation;
+        }
+
+        /// <summary>
+        /// Checks if a planet is in Exaltation sign
+        ///
+        /// NOTE:
+        /// -   Rahu & ketu accounted for
+        /// 
+        /// -   Exaltation
+        ///     Each planet is held to be exalted when it is
+        ///     in a particular sign. The power to do good when in
+        ///     exaltation is greater than when in its own sign.
+        ///     Throughout the sign ascribed,
+        ///     the planet is exalted but in a particular degree
+        ///     its exaltation is at the maximum level.
+        /// </summary>
+
+        public static bool IsPlanetExaltedSign(PlanetName planet, Time time)
+        {
+            //get planet location
+            var planetLongitude = PlanetNirayanaLongitude(planet, time);
+
+            //convert planet longitude to zodiac sign
+            var planetZodiac = ZodiacSignAtLongitude(planetLongitude);
+
+            //get the longitude where planet is Exaltation
+            var point = PlanetExaltationPoint(planet);
+
+            //check if planet is in Exaltation sign
+            var sameSign = planetZodiac.GetSignName() == point.GetSignName();
+
+            //check only degree ignore minutes & seconds
+            var planetIsExaltationSign = sameSign;
+
+            return planetIsExaltationSign;
         }
 
         /// <summary>
@@ -7185,7 +7779,7 @@ namespace VedAstro.Library
             //note: generaly speaking a neutral planet shloud not exist, either good or bad
             if (planetNature == EventNature.Neutral)
             {
-                var _planetCurrentHouse = HousePlanetOccupies(planet, person.BirthTime);
+                var _planetCurrentHouse = HousePlanetOccupiesBasedOnLongitudes(planet, person.BirthTime);
 
                 var _currentHouseRelation = PlanetRelationshipWithHouse(_planetCurrentHouse, planet, person.BirthTime);
 
@@ -7531,6 +8125,7 @@ namespace VedAstro.Library
         /// <summary>
         /// Checks if planet is placed in own house
         /// meaning house sign owned by planet
+        /// planet position determined by longitude
         /// note: rahu and ketu return false always
         /// </summary>
         public static bool IsPlanetInOwnHouse(PlanetName planetName, Time time)
@@ -7539,7 +8134,7 @@ namespace VedAstro.Library
             var isRahuKetu = planetName == Rahu || planetName == Ketu;
 
             //get current house
-            var _planetCurrentHouse = HousePlanetOccupies(planetName, time);
+            var _planetCurrentHouse = HousePlanetOccupiesBasedOnLongitudes(planetName, time);
 
             //relationship with current house
             var _currentHouseRelation = isRahuKetu ? 0 : PlanetRelationshipWithHouse(_planetCurrentHouse, planetName, time);
@@ -7556,6 +8151,80 @@ namespace VedAstro.Library
         }
 
         /// <summary>
+        /// Checks if planet is placed in own sign
+        /// planet position determined by sign NOT longitude
+        /// note: rahu and ketu return false always
+        /// </summary>
+
+        public static bool IsPlanetInOwnSign(PlanetName planetName, Time time)
+        {
+            //find out if planet is rahu or ketu, because not all calculations supported
+            var isRahuKetu = planetName == Rahu || planetName == Ketu;
+
+            //get current house
+            var _planetCurrentHouse = HousePlanetOccupiesBasedOnSign(planetName, time);
+
+            //relationship with current house
+            var _currentHouseRelation = isRahuKetu ? 0 : PlanetRelationshipWithHouse(_planetCurrentHouse, planetName, time);
+
+            //relation should be own
+            if (_currentHouseRelation == PlanetToSignRelationship.OwnVarga)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Returns true if planet is in friendly sign
+        /// </summary>
+        public static bool IsPlanetInFriendSign(PlanetName planetName, Time time)
+        {
+            var currentPlanetSign = Calculate.PlanetZodiacSign(planetName, time);
+
+            var signRelationship = PlanetRelationshipWithSign(planetName, currentPlanetSign.GetSignName(), time);
+
+            //check relationship
+            var isFriend = signRelationship == PlanetToSignRelationship.FriendVarga;
+            var isBestFriend = signRelationship == PlanetToSignRelationship.BestFriendVarga;
+            if (isFriend || isBestFriend)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+        }
+
+        /// <summary>
+        /// Returns true if planet is in enemy sign
+        /// </summary>
+        public static bool IsPlanetInEnemySign(PlanetName planetName, Time time)
+        {
+            var currentPlanetSign = Calculate.PlanetZodiacSign(planetName, time);
+
+            var signRelationship = PlanetRelationshipWithSign(planetName, currentPlanetSign.GetSignName(), time);
+
+            //check relationship
+            var isEnemy = signRelationship == PlanetToSignRelationship.EnemyVarga;
+            var isSuperEnemy = signRelationship == PlanetToSignRelationship.BitterEnemyVarga;
+            if (isEnemy || isSuperEnemy)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+        }
+
+        /// <summary>
         /// True if a planet is in a house sign owned by an enemy. Rahu and Ketu is false always
         /// </summary>
         public static bool IsPlanetInEnemyHouse(PlanetName planetName, Time time)
@@ -7564,12 +8233,12 @@ namespace VedAstro.Library
             var isRahuKetu = planetName == Rahu || planetName == Ketu;
 
             //get current house
-            var _planetCurrentHouse = HousePlanetOccupies(planetName, time);
+            var _planetCurrentHouse = HousePlanetOccupiesBasedOnLongitudes(planetName, time);
 
             //relationship with current house
             var _currentHouseRelation = isRahuKetu ? 0 : PlanetRelationshipWithHouse(_planetCurrentHouse, planetName, time);
 
-            //relation should be own
+            //check relationship
             var isEnemy = _currentHouseRelation == PlanetToSignRelationship.EnemyVarga;
             var isSuperEnemy = _currentHouseRelation == PlanetToSignRelationship.BitterEnemyVarga;
             if (isEnemy || isSuperEnemy)
@@ -7591,15 +8260,15 @@ namespace VedAstro.Library
             var isRahuKetu = planetName == Rahu || planetName == Ketu;
 
             //get current house
-            var _planetCurrentHouse = HousePlanetOccupies(planetName, time);
+            var _planetCurrentHouse = HousePlanetOccupiesBasedOnLongitudes(planetName, time);
 
             //relationship with current house
             var _currentHouseRelation = isRahuKetu ? 0 : PlanetRelationshipWithHouse(_planetCurrentHouse, planetName, time);
 
-            //relation should be own
-            var isEnemy = _currentHouseRelation == PlanetToSignRelationship.EnemyVarga;
-            var isSuperEnemy = _currentHouseRelation == PlanetToSignRelationship.BitterEnemyVarga;
-            if (isEnemy || isSuperEnemy)
+            //check relationship
+            var isFriend = _currentHouseRelation == PlanetToSignRelationship.FriendVarga;
+            var isBestFriend = _currentHouseRelation == PlanetToSignRelationship.BestFriendVarga;
+            if (isFriend || isBestFriend)
             {
                 return true;
             }
@@ -7660,10 +8329,10 @@ namespace VedAstro.Library
         {
             //get house of the lord in question
             var houseLord = LordOfHouse((HouseName)houseNumber, birthTime);
-            var houseLordHouse = HousePlanetOccupies(houseLord, birthTime);
+            var houseLordHouse = HousePlanetOccupiesBasedOnLongitudes(houseLord, birthTime);
 
             //get house of input planet
-            var inputPlanetHouse = HousePlanetOccupies(planet, birthTime);
+            var inputPlanetHouse = HousePlanetOccupiesBasedOnLongitudes(planet, birthTime);
 
             //check if both are in same house
             if (inputPlanetHouse == houseLordHouse)
@@ -7734,46 +8403,6 @@ namespace VedAstro.Library
 
 
             return rangeBasedScore;
-        }
-
-        /// <summary>
-        /// Experimental Code, stand back!
-        /// </summary>
-        public static double PlanetNatureScoreMK4(Time personBirthTime, PlanetName inputPlanet)
-        {
-            //if no house then no score
-            if (inputPlanet == PlanetName.Empty) { return 0; }
-
-            //get house score
-            //var planetStrength = GetPlanetShadbalaPinda(inputPlanet, personBirthTime).ToDouble();
-
-            //weakest planet gives lowest score -2
-            //strongest planet gives highest score 2
-            //get range
-            //var highestPlanetScore = GetPlanetShadbalaPinda(GetAllPlanetOrderedByStrength(personBirthTime)[0], personBirthTime).ToDouble();
-            //var weakestPlanet = GetAllPlanetOrderedByStrength(personBirthTime)[8];
-            //var lowestPlanetScore = GetPlanetShadbalaPinda(weakestPlanet, personBirthTime).ToDouble();
-
-            //find accurate planet strength relative to others
-            //if above limit than strong else weak below 0
-            var isBenefic = IsPlanetStrongInShadbala(inputPlanet, personBirthTime);
-            //var rangeBasedScore = 0.0;
-
-            var x = isBenefic ? 1 : -1;
-
-            return x;
-
-            //if (isBenefic) //positive number
-            //{
-            //     rangeBasedScore = planetStrength.Remap(lowestPlanetScore, highestPlanetScore, 0, 2);
-
-            //}
-            //else // 0 or below
-            //{
-            //     rangeBasedScore = planetStrength.Remap(lowestPlanetScore, highestPlanetScore, -2, 0);
-            //}
-
-            //return rangeBasedScore;
         }
 
         /// <summary>
@@ -7852,24 +8481,6 @@ namespace VedAstro.Library
 
 
         }
-
-        /// <summary>
-        /// Used for judging dasa good or bad, Bala book pg 110
-        /// if planet has more Ishta than good = +1
-        /// else if more Kashta than bad = -1
-        /// </summary>
-        public static double PlanetIshtaKashtaScore(PlanetName planet, Time birthTime)
-        {
-            var ishtaScore = PlanetIshtaScore(planet, birthTime);
-
-            var kashtaScore = PlanetKashtaScore(planet, birthTime);
-
-            //if more than good, else bad
-            var ishtaMore = ishtaScore > kashtaScore;
-
-            return ishtaMore ? 1 : -1;
-        }
-
 
         /// <summary>
         /// Used for judging dasa good or bad, Bala book pg 110
@@ -8022,10 +8633,10 @@ namespace VedAstro.Library
         public static List<PlanetName> AllPlanetsSignsFromPlanet(int signsFromMoon, Time birthTime, PlanetName startPlanet)
         {
             //get the sign to check
-            var moonNthSign = SignCountedFromPlanetSign(signsFromMoon, birthTime, startPlanet);
+            var planetNthSign = SignCountedFromPlanetSign(signsFromMoon, startPlanet, birthTime);
 
             //get all the planets in the sign
-            var planetsIn = PlanetsInSign(moonNthSign, birthTime);
+            var planetsIn = PlanetsInSign(planetNthSign, birthTime);
 
             return planetsIn;
         }
@@ -8148,7 +8759,7 @@ namespace VedAstro.Library
             var _133 = new Angle(133, 20, 0);
             var total = _133 + sunLong;
 
-            return total.Expunge360();
+            return total.Normalize360();
         }
 
         /// <summary>
@@ -8162,7 +8773,7 @@ namespace VedAstro.Library
             //calculate final
             var total = Angle.Degrees360 - dhumaLong;
 
-            return total.Expunge360();
+            return total.Normalize360();
         }
 
         /// <summary>
@@ -8176,7 +8787,7 @@ namespace VedAstro.Library
             //calculate final
             var total = longitude + Angle.Degrees180;
 
-            return total.Expunge360();
+            return total.Normalize360();
         }
 
         /// <summary>
@@ -8190,7 +8801,7 @@ namespace VedAstro.Library
             //calculate final
             var total = Angle.Degrees360 - longitude;
 
-            return total.Expunge360();
+            return total.Normalize360();
         }
 
         /// <summary>
@@ -8205,7 +8816,7 @@ namespace VedAstro.Library
             var _1640 = new Angle(16, 40, 0);
             var total = longitude + _1640;
 
-            return total.Expunge360();
+            return total.Normalize360();
         }
 
         /// <summary>
@@ -8283,7 +8894,7 @@ namespace VedAstro.Library
                 //NOTE ASSUMPITION: only possible values "middle" or "begin"
                 var selectedPart = upagrahaPart == "middle" ? partMiddleTime :
                     upagrahaPart == "begin" ? partStartTime : throw new Exception("END OF LINE!");
-                var allHouseMiddleLongitudes = Calculate.AllHouseMiddleLongitudes(selectedPart);
+                var allHouseMiddleLongitudes = Calculate.AllHouseLongitudes(selectedPart);
                 lagnaLongitudes = allHouseMiddleLongitudes.Where(x => x.GetHouseName() == HouseName.House1).First();
             }
             //nigth birth
@@ -8304,7 +8915,7 @@ namespace VedAstro.Library
                 //NOTE ASSUMPITION: only possible values "middle" or "begin"
                 var selectedPart = upagrahaPart == "middle" ? partMiddleTime :
                     upagrahaPart == "begin" ? partStartTime : throw new Exception("END OF LINE!");
-                var allHouseMiddleLongitudes = Calculate.AllHouseMiddleLongitudes(selectedPart);
+                var allHouseMiddleLongitudes = Calculate.AllHouseLongitudes(selectedPart);
                 lagnaLongitudes = allHouseMiddleLongitudes.Where(x => x.GetHouseName() == HouseName.House1).First();
             }
 
@@ -8546,6 +9157,22 @@ namespace VedAstro.Library
             //UNDERLYING FUNCTION
             Angle _getAyanamsaDegree()
             {
+                //get ayanamsa from swiss for all except Raman,
+                //becasue swiss does not match with Raman's book
+                if (Calculate.Ayanamsa == (int)Library.Ayanamsa.RAMAN)
+                {
+                    return calculateRamanAyanamsa(time);
+                }
+                else
+                {
+                    return getAyanamsaFromSwissEphemeris(time);
+                }
+
+            }
+
+            //gets ayanamsa from swiss eph
+            Angle getAyanamsaFromSwissEphemeris(Time time)
+            {
                 //This would request sidereal positions calculated using the Swiss Ephemeris.
                 int iflag = SwissEph.SEFLG_SIDEREAL;
                 //int iflag = SwissEph.SEFLG_NONUT;
@@ -8553,26 +9180,42 @@ namespace VedAstro.Library
                 SwissEph ephemeris = new SwissEph();
 
                 // Convert DOB to ET
-                jul_day_ET = TimeToEphemerisTime(time);
+                jul_day_ET = TimeToJulianEphemerisTime(time);
 
                 //set ayanamsa
                 ephemeris.swe_set_sid_mode(Ayanamsa, 0, 0);
 
-
-
-                //var ayanamsaDegree = ephemeris.swe_get_ayanamsa(jul_day_ET);
-                //return Angle.FromDegrees(ayanamsaDegree);
-
-                //USE this newer method in Swiss Eph intrduced in Ver 2.0. See Swiss Eph for Documentation
+                //USE this newer method in Swiss Eph introduced in Ver 2.0. See Swiss Eph for Documentation
                 //CPJ Add/Change Nov 22 2023 because Ayanamsa not precise compared to other software products
                 //this provides higher precision Ayanamsa
-                string serr = "";
+                string serr = ""; //buffer to capture error messages
                 double daya;
                 var ayanamsaDegree = ephemeris.swe_get_ayanamsa_ex(jul_day_ET, iflag, out daya, ref serr);
 
                 return Angle.FromDegrees(daya);
 
             }
+
+            //manually calculates Raman ayanamsa to match with : Article 49 - Manual Of Hindu Astrology - pg 22
+            Angle calculateRamanAyanamsa(Time time)
+            {
+                int year = Calculate.LmtToUtc(time).Year;
+
+                //it has been observed and proved mathematically, that each year at the time when the Sun reaches his
+                //equinoctial point of Aries 0° when throughout the earth, the day and night are equal in length,
+                //the position of the earth in reference to some fixed star is nearly 50.333 of space farther west
+                //than the earth was at the same equinoctial moment of the previous year.
+                const double precessionRate = 50.3333333333;
+
+                // B.V.Raman accepted 397 AD as the Zero Ayanamsa Year 
+                const int yearOfCoincidence = 397;
+
+                var ayanamsaSecondsRaw = (year - yearOfCoincidence) * precessionRate;
+                var returnValue = new Angle(seconds: (long)(Math.Round(ayanamsaSecondsRaw)));
+
+                return returnValue;
+            }
+
 
         }
 
@@ -8591,24 +9234,20 @@ namespace VedAstro.Library
 
             Angle _getPlanetSayanaLongitude()
             {
-                //Converts LMT to UTC (GMT)
-                //DateTimeOffset utcDate = lmtDateTime.ToUniversalTime();
+                int iflag = SwissEph.SEFLG_SWIEPH;
 
-                int iflag = SwissEph.SEFLG_SWIEPH;  //+ SwissEph.SEFLG_SPEED;
                 double[] results = new double[6];
                 string err_msg = "";
                 SwissEph ephemeris = new SwissEph();
 
                 // Convert DOB to ET
-                double jul_day_ET = TimeToEphemerisTime(time);
+                double jul_day_ET = TimeToJulianEphemerisTime(time);
 
                 //convert planet name, compatible with Swiss Eph
                 int swissPlanet = Tools.VedAstroToSwissEph(planetName);
 
                 //Get planet long
                 int ret_flag = ephemeris.swe_calc(jul_day_ET, swissPlanet, iflag, results, ref err_msg);
-
-
 
                 //data in results at index 0 is longitude
                 var planetSayanaLongitude = Angle.FromDegrees(results[0]);
@@ -8617,7 +9256,7 @@ namespace VedAstro.Library
                 if (planetName == Ketu)
                 {
                     var x = planetSayanaLongitude + Angle.Degrees180;
-                    planetSayanaLongitude = x.Expunge360();
+                    planetSayanaLongitude = x.Normalize360();
                 }
 
                 return planetSayanaLongitude;
@@ -8665,16 +9304,33 @@ namespace VedAstro.Library
                     }
                 }
 
+                //get ayanamsa from swiss for all except Raman,
+                //becasue swiss ayanamsa does not match with Raman's book
+                if (Calculate.Ayanamsa == (int)Library.Ayanamsa.RAMAN)
+                {
+                    return _getPlanetNirayanaLongitudeForRaman();
+                }
+                else
+                {
+                    return _getPlanetNirayanaLongitudeSwissEph();
+                }
 
-                //This would request sidereal positions calculated using the Swiss Ephemeris.
-                int iflag = SwissEph.SEFLG_SIDEREAL | SwissEph.SEFLG_SWIEPH; // SEFLG_SIDEREAL | ; //+ SwissEph.SEFLG_SPEED;
+
+
+            }
+
+            //for all other ayanamsa uses swiss
+            Angle _getPlanetNirayanaLongitudeSwissEph()
+            {
+                //This would request sidereal (ayanamsa) positions calculated using the Swiss Ephemeris.
+                int iflag = SwissEph.SEFLG_SIDEREAL | SwissEph.SEFLG_SWIEPH;
                 double[] results = new double[6];
                 string err_msg = "";
                 double jul_day_ET;
                 SwissEph ephemeris = new SwissEph();
 
                 // Convert DOB to ET
-                jul_day_ET = TimeToEphemerisTime(time);
+                jul_day_ET = TimeToJulianEphemerisTime(time);
 
                 //convert planet name, compatible with Swiss Eph
                 int swissPlanet = Tools.VedAstroToSwissEph(planetName);
@@ -8692,13 +9348,32 @@ namespace VedAstro.Library
                 if (planetName == Ketu)
                 {
                     var x = planetSayanaLongitude + Angle.Degrees180;
-                    planetSayanaLongitude = x.Expunge360();
+                    planetSayanaLongitude = x.Normalize360();
                 }
 
                 return planetSayanaLongitude;
 
             }
 
+            //specialized to use calculated Raman ayanamsa
+            Angle _getPlanetNirayanaLongitudeForRaman()
+            {
+                //declare return value
+                Angle returnValue;
+
+                //Get sayana longitude on day 
+                Angle longitude = PlanetSayanaLongitude(planetName, time);
+
+                //3 - Hindu Nirayana Long = Sayana Long — Ayanamsa.
+                Angle birthAyanamsa = Calculate.AyanamsaDegree(time);
+
+                //if below ayanamsa add 360 before minus
+                returnValue = longitude.TotalDegrees < birthAyanamsa.TotalDegrees
+                    ? (longitude + Angle.Degrees360) - birthAyanamsa
+                    : longitude - birthAyanamsa;
+
+                return returnValue;
+            }
 
         }
 
@@ -8808,7 +9483,7 @@ namespace VedAstro.Library
                 SwissEph ephemeris = new SwissEph();
 
                 // Convert DOB to ET
-                jul_day_ET = TimeToEphemerisTime(time);
+                jul_day_ET = TimeToJulianEphemerisTime(time);
 
                 //convert planet name, compatible with Swiss Eph
                 int swissPlanet = Tools.VedAstroToSwissEph(planetName);
@@ -8823,7 +9498,7 @@ namespace VedAstro.Library
                 if (planetName == Library.PlanetName.Ketu)
                 {
                     var x = planetSayanaLongitude + Angle.Degrees180;
-                    planetSayanaLongitude = x.Expunge360();
+                    planetSayanaLongitude = x.Normalize360();
                 }
 
                 return planetSayanaLongitude;
@@ -8857,7 +9532,7 @@ namespace VedAstro.Library
                 SwissEph ephemeris = new SwissEph();
 
                 // Convert DOB to ET
-                jul_day_ET = TimeToEphemerisTime(time);
+                jul_day_ET = TimeToJulianEphemerisTime(time);
 
 
                 //Convert PlanetName to SE_PLANET type
@@ -8923,7 +9598,7 @@ namespace VedAstro.Library
             SwissEph ephemeris = new SwissEph();
 
             // Convert DOB to ET
-            jul_day_ET = TimeToEphemerisTime(time);
+            jul_day_ET = TimeToJulianEphemerisTime(time);
 
 
             //Convert PlanetName to SE_PLANET type
@@ -9431,44 +10106,26 @@ namespace VedAstro.Library
         /// </summary>
         public static Angle HouseJunctionPoint(Angle previousHouse, Angle nextHouse)
         {
-            //CACHE MECHANISM
-            return CacheManager.GetCache(new CacheKey(nameof(HouseJunctionPoint), previousHouse, nextHouse, Ayanamsa), _getHouseJunctionPoint);
+            //Add the longitudes of two consecutive Bhavas (house)
+            //and divide the sum by 2. The result represents sandhi (junction point of houses).
 
+            // Normalize the house longitudes to ensure they are within 0-360°
+            previousHouse = previousHouse.Normalize360();
+            nextHouse = nextHouse.Normalize360();
 
-            //UNDERLYING FUNCTION
-            Angle _getHouseJunctionPoint()
+            // Check if the houses cross the 360° boundary
+            if (nextHouse < previousHouse)
             {
-                //Add the longitudes of two consecutive Bhavas (house)
-                //and divide the sum by 2. The result represents sandhi (junction point of houses).
-
-                //get sum of house longitudes
-                var longitudeSum = previousHouse + nextHouse;
-
-                Angle junctionPoint;
-
-                //if next house longitude is lower than previous house longitude
-                //next house is after 360 degrees
-                if (nextHouse < previousHouse)
-                {
-                    //add 360 to longitude sum
-                    longitudeSum = longitudeSum + Angle.Degrees360;
-
-                    //divide sum by 2 to get junction point
-                    junctionPoint = longitudeSum.Divide(2);
-
-                    //correct junction point by subtracting 360
-                    junctionPoint = junctionPoint - Angle.Degrees360;
-                }
-                else
-                {
-                    //divide sum by 2 to get junction point
-                    junctionPoint = longitudeSum.Divide(2);
-                }
-
-                //return junction point
-                return junctionPoint;
-
+                // Add 360° to the next house longitude for correct wrapping
+                nextHouse += Angle.Degrees360;
             }
+
+            // Calculate the junction point
+            var longitudeSum = previousHouse + nextHouse;
+            var junctionPoint = longitudeSum.Divide(2);
+
+            // Normalize the junction point back to 0-360° range
+            return junctionPoint.Normalize360();
 
         }
 
@@ -10291,46 +10948,6 @@ namespace VedAstro.Library
 
         }
 
-        /// <summary>
-        /// Gets the longitude of house 1 and house 10
-        /// using Swiss Epehemris swe_houses
-        /// </summary>
-        public static double[] GetHouse1And10Longitudes(Time time)
-        {
-            //CACHE MECHANISM
-            return CacheManager.GetCache(new CacheKey(nameof(GetHouse1And10Longitudes), time, Ayanamsa), _getHouse1And10Longitudes);
-
-
-            //UNDERLYING FUNCTION
-            double[] _getHouse1And10Longitudes()
-            {
-                //get location at place of time
-                var location = time.GetGeoLocation();
-
-                //Convert DOB to Julian Day
-                var jul_day_UT = TimeToJulianDay(time);
-
-                SwissEph swissEph = new SwissEph();
-
-                double[] cusps = new double[13];
-
-                //we have to supply ascmc to make the function run
-                double[] ascmc = new double[10];
-
-                //set ayanamsa
-                swissEph.swe_set_sid_mode(Ayanamsa, 0, 0);
-
-                //NOTE:
-                //if you use P which is Placidus there is a high chances you will get unequal houses from the SwissEph library itself...
-                // you have to use V - 'V'Vehlow equal (Asc. in middle of house 1)
-                swissEph.swe_houses(jul_day_UT, location.Latitude(), location.Longitude(), 'V', cusps, ascmc);
-
-                //we only return cusps, cause that is what is used for now
-                return cusps;
-            }
-
-        }
-
 
         /// <summary>
         /// Converts Local Mean Time (LMT) to Universal Time (UTC)
@@ -10384,7 +11001,7 @@ namespace VedAstro.Library
 
         /// <summary>
         /// Give a planet and sign and ashtakvarga bindu can be calculated
-        ///
+        /// (uses Bhinnashtakavarga)
         /// EXP : In the Sun's own Ashtakvarga, there are 5 bindus in Aries
         /// 
         /// NOTE ON USE: Ashtakvarga System pg.128 
@@ -10410,6 +11027,36 @@ namespace VedAstro.Library
         }
 
         /// <summary>
+        /// Example : Get Venus bindu in Mercury's Ashtakvarga (main planet)
+        /// </summary>
+        /// <param name="mainAshtakvargaPlanet">planet's who Bhinnashtakavarga Chart is checked</param>
+        /// <param name="planetToCheck">planet to get bindu based on sign</param>
+        public static int PlanetAshtakvargaBinduByPlanet(PlanetName mainAshtakvargaPlanet, PlanetName planetToCheck, Time time)
+        {
+            var planetToCheckZodiac = Calculate.PlanetZodiacSign(planetToCheck, time).GetSignName();
+            int bindus = Calculate.PlanetAshtakvargaBindu(mainAshtakvargaPlanet, planetToCheckZodiac, time);
+
+            return bindus;
+        }
+
+        /// <summary>
+        /// Gets bindus for planet in it's own Ashtakavarga in the sign it is in
+        /// </summary>
+        public static int PlanetOwnAshtakvargaBindu(PlanetName planet, Time time)
+        {
+            //rahu & ketu does not have Ashtakvarga Bindu
+            if (planet == Rahu || planet == Ketu) { return 0; }
+
+            //get planet's sign
+            var planetRasi = Calculate.PlanetZodiacSign(planet, time);
+
+            //get bindus for the sign which planet is on
+            var bindus = Calculate.PlanetAshtakvargaBindu(planet, planetRasi.GetSignName(), time);
+
+            return bindus;
+        }
+
+        /// <summary>
         /// Kakshyas for daily use : The concept of Kakshyas can be
         /// employed for daily use. The method of this application is simple.
         /// Prepare the Prastaraka charts for the seven planets. Then find
@@ -10428,7 +11075,7 @@ namespace VedAstro.Library
         /// Each rashi or sign is divided into eight equal parts or Kakshyas
         /// The Prastaraka chart for each planet can thus be readjusted
         /// to bring in the concept of the Kakshyas.
-        /// A planet is considered to be productive ofbenefic
+        /// A planet is considered to be productive of benefic
         /// results when it transits a Kakshya where there is a benefic point
         /// </summary>
         public static GocharaKakshas GocharaKakshas(Time checkTime, Time birthTime)
@@ -10521,7 +11168,7 @@ namespace VedAstro.Library
         #region GOCHARA
 
         /// <summary>
-        /// Gets the Gochara House number which is the count from birth Moon sign (janma rasi)
+        /// Gets the Gochara sign number which is the count from birth Moon sign (janma rasi)
         /// to the sign the planet is at the current time. Gochara == Transits
         /// </summary>
         public static int GocharaZodiacSignCountFromMoon(Time birthTime, Time currentTime, PlanetName planet)
@@ -10796,20 +11443,20 @@ namespace VedAstro.Library
         /// </summary>
         public static bool IsPlanetGocharaBindu(Time birthTime, Time nowTime, PlanetName planet, int bindu)
         {
-            //house the planet is transiting now
-            var gocharaSignCount = Calculate.GocharaZodiacSignCountFromMoon(birthTime, nowTime, planet);
+            //sign the planet is transiting now counted from moon
+            var signCountFromMoon = Calculate.GocharaZodiacSignCountFromMoon(birthTime, nowTime, planet);
 
             //check if there is any planet obstructing this transit prediction via Vedhasthana
-            var obstructionFound = Calculate.IsGocharaObstructed(planet, gocharaSignCount, birthTime, nowTime);
+            var obstructionFound = Calculate.IsGocharaObstructed(planet, signCountFromMoon, birthTime, nowTime);
 
             //if obstructed end here
             if (obstructionFound) { return false; }
 
             //gochara ongoing, get sign of house to get planet's bindu score for said transit
-            var gocharaSign = HouseSignName((HouseName)gocharaSignCount, nowTime);
+            var gocharaSign = Calculate.SignCountedFromPlanetSign(signCountFromMoon, Moon, birthTime);
 
             //get planet's current bindu
-            var planetBindu = Calculate.PlanetAshtakvargaBindu(planet, gocharaSign, nowTime);
+            var planetBindu = Calculate.PlanetAshtakvargaBindu(planet, gocharaSign, birthTime);
 
             //occuring if bindu is match
             var occuring = planetBindu == bindu;
@@ -11368,7 +12015,7 @@ namespace VedAstro.Library
 
         /// <summary>
         /// Checks if the a planet is conjunct with another planet
-        ///
+        /// (Based on longitudes)
         /// Note:
         /// Both planets A & B are checked if they are in conjunct with each other,
         /// performance might be effected mildly, but errors in conjunction calculation would be caught here.
@@ -11383,14 +12030,20 @@ namespace VedAstro.Library
             //check that A conjuncts B and B conjuncts A 
             var conjunctFound = planetAConjunct.Contains(planetB) && planetBConjunct.Contains(planetA);
 
-            //TODO clean or clear
-            //erro check, can be removed upon corectness confirmation
-            //if (planetAConjunct.Contains(planetB) != planetBConjunct.Contains(planetA))
-            //{
-            //    throw new Exception("Conjunct planet not uniform!");
-            //}
-
             return conjunctFound;
+        }
+
+        /// <summary>
+        /// Check if benefic planets are conjunct with specified planet
+        /// </summary>
+        public static bool IsPlanetConjunctWithBeneficPlanets(PlanetName inputPlanet, Time time)
+        {
+            var beneficPlanets = Calculate.BeneficPlanetList(time);
+
+            // Check if planet is conjunct with any benefic planet
+            var isPlanetConjunctBenefic = beneficPlanets.Any(benefic => Calculate.IsPlanetConjunctWithPlanet(inputPlanet, benefic, time));
+
+            return isPlanetConjunctBenefic;
         }
 
         #endregion
@@ -11422,6 +12075,28 @@ namespace VedAstro.Library
             return factor;
         }
 
+        /// <summary>
+        /// Given a list of planets will pick out the strongest planet based on Shadbala
+        /// </summary>
+        public static PlanetName PickOutStrongestPlanet(List<PlanetName> relatedPlanets, Time birthTime)
+        {
+            //if only 1 planet than no need to check
+            if (relatedPlanets.Count == 1) { return relatedPlanets[0]; }
+
+            //calculate strength for all given planets
+            var powerList = new Dictionary<PlanetName, double>();
+            foreach (var relatedPlanet in relatedPlanets)
+            {
+                var strength = Calculate.PlanetStrength(relatedPlanet, birthTime);
+                powerList.Add(relatedPlanet, strength.ToDouble());
+            }
+
+            //pickout highest value
+            var strongest = powerList.Aggregate((l, r) => l.Value > r.Value ? l : r);
+
+            //return strongest planet name
+            return strongest.Key;
+        }
 
         /// <summary>
         /// Returns an array of all planets sorted by strenght,
@@ -11677,7 +12352,7 @@ namespace VedAstro.Library
         /// </summary>
         private static PlanetName LordOfHousePlanetIsIn(PlanetName planetName, Time time)
         {
-            var currentHouse = Calculate.HousePlanetOccupies(planetName, time);
+            var currentHouse = Calculate.HousePlanetOccupiesBasedOnLongitudes(planetName, time);
             var houseLord = Calculate.LordOfHouse((HouseName)currentHouse, time);
 
             return houseLord;
@@ -12289,6 +12964,7 @@ namespace VedAstro.Library
 
 
         /// <summary>
+        /// Determines if a given planet is combust at a specific time.
         /// Combustion of planets: Planets when too close to the Sun become
         /// invisible and are labelled as combust. A combust planet loses its strength
         /// and tends to behave adversely according to predictive astrology. Aryabhata
@@ -12296,17 +12972,80 @@ namespace VedAstro.Library
         /// ‘When the Moon has no latitude (i.e., when it is at zero degree of
         /// latitude) it is visible when situated at a distance of 12 degrees from the Sun.
         /// Venus is visible when 9 degrees distant from the Sun. The other planets
-        /// taken in the order of decreasing sizes (viz., Jupiter, Mercury, Saturn and
+        /// taken in the order of decreasing sizes (viz., Jupiter, Mercury, Saturn, and
         /// Mars) are visible when they are 9 degrees increased by twos (i.e., when they
-        /// are 11, 13, 15 and 17 degrees) distant from the Sun.’
+        /// are 11, 13, 15, and 17 degrees) distant from the Sun.’
         /// The degrees as mentioned above are generally taken as the limits within
         /// which the respective planets are said to be combust.
         /// </summary>
-        /// <returns></returns>
-        public static bool IsPlanetCombust()
+        /// <param name="planetName">The planet to check for combustion.</param>
+        /// <param name="time">The time at which to check combustion.</param>
+        /// <returns>True if the planet is combust at the given time; otherwise, false.</returns>
+        public static bool IsPlanetCombust(PlanetName planetName, Time time)
         {
-            //todo
-            return false;
+
+            // Check if the planet is eligible for combustion
+            if (!IsPlanetCombustable(planetName))
+            {
+                // Planets that cannot become combust (Sun, Moon, Rahu, Ketu) return false
+                return false;
+            }
+
+            // Get the sidereal (nirayana) longitude of the planet and the Sun at the given time
+            double planetLongitude = Calculate.PlanetNirayanaLongitude(planetName, time).TotalDegrees;
+            double sunLongitude = Calculate.PlanetNirayanaLongitude(PlanetName.Sun, time).TotalDegrees;
+
+            // Calculate the absolute angular difference between the planet and the Sun (0 to 360 degrees)
+            double angularDifference = Math.Abs(planetLongitude - sunLongitude) % 360;
+
+            // Adjust the angular difference to be within 0 to 180 degrees
+            if (angularDifference > 180)
+            {
+                angularDifference = 360 - angularDifference;
+            }
+
+            // Get the combustion limit for the planet
+            double combustionLimit = GetPlanetCombustionLimit(planetName);
+
+            // The planet is combust if the angular difference is less than or equal to the combustion limit
+            return angularDifference <= combustionLimit;
+
+            //--------------LOCALS---------
+            // Local function to check if a planet is eligible for combustion
+            bool IsPlanetCombustable(PlanetName pName)
+            {
+                if (pName == PlanetName.Mars || pName == PlanetName.Mercury || pName == PlanetName.Jupiter || pName == PlanetName.Venus || pName == PlanetName.Saturn)
+                { return true; }
+
+                return false;
+            }
+
+            // Local function to get the combustion limit for a planet
+            double GetPlanetCombustionLimit(PlanetName pName)
+            {
+                if (pName == PlanetName.Venus)
+                {
+                    return 9;
+                }
+                if (pName == PlanetName.Jupiter)
+                {
+                    return 11;
+                }
+                if (pName == PlanetName.Mercury)
+                {
+                    return 13;
+                }
+                if (pName == PlanetName.Saturn)
+                {
+                    return 15;
+                }
+                if (pName == PlanetName.Mars)
+                {
+                    return 17;
+                }
+                return 0;
+            }
+
         }
 
         /// <summary>
@@ -12373,43 +13112,43 @@ namespace VedAstro.Library
                     planetSignRelationshipList.Add(rasiSignRelationship);
                 }
 
-                //get planet hora
-                var planetHora = Calculate.PlanetHoraSigns(planetName, time).GetSignName();
+                //get planet hora (D2)
+                var planetHora = Calculate.PlanetHoraD2Signs(planetName, time).GetSignName();
                 var horaSignRelationship = Calculate.PlanetRelationshipWithSign(planetName, planetHora, time);
                 //add planet hora relationship to list
                 planetSignRelationshipList.Add(horaSignRelationship);
 
 
-                //get planet drekkana
-                var planetDrekkana = Calculate.PlanetDrekkanaSign(planetName, time).GetSignName();
+                //get planet drekkana (D3)
+                var planetDrekkana = Calculate.PlanetDrekkanaD3Sign(planetName, time).GetSignName();
                 var drekkanaSignRelationship = Calculate.PlanetRelationshipWithSign(planetName, planetDrekkana, time);
                 //add planet drekkana relationship to list
                 planetSignRelationshipList.Add(drekkanaSignRelationship);
 
 
-                //get planet saptamsa
-                var planetSaptamsa = Calculate.PlanetSaptamsaSign(planetName, time);
+                //get planet saptamsa (D7)
+                var planetSaptamsa = Calculate.PlanetSaptamshaD7Sign(planetName, time).GetSignName();
                 var saptamsaSignRelationship = Calculate.PlanetRelationshipWithSign(planetName, planetSaptamsa, time);
                 //add planet saptamsa relationship to list
                 planetSignRelationshipList.Add(saptamsaSignRelationship);
 
 
-                //get planet navamsa
-                var planetNavamsa = Calculate.PlanetNavamsaSign(planetName, time);
+                //get planet navamsa (D9)
+                var planetNavamsa = Calculate.PlanetNavamshaD9Sign(planetName, time).GetSignName();
                 var navamsaSignRelationship = Calculate.PlanetRelationshipWithSign(planetName, planetNavamsa, time);
                 //add planet navamsa relationship to list
                 planetSignRelationshipList.Add(navamsaSignRelationship);
 
 
-                //get planet dwadasamsa
-                var planetDwadasamsa = Calculate.PlanetDwadasamsaSign(planetName, time);
+                //get planet dwadasamsa (D12)
+                var planetDwadasamsa = Calculate.PlanetDwadashamshaD12Sign(planetName, time).GetSignName();
                 var dwadasamsaSignRelationship = Calculate.PlanetRelationshipWithSign(planetName, planetDwadasamsa, time);
                 //add planet dwadasamsa relationship to list
                 planetSignRelationshipList.Add(dwadasamsaSignRelationship);
 
 
-                //get planet thrimsamsa
-                var planetThrimsamsa = Calculate.PlanetThrimsamsaSign(planetName, time);
+                //get planet thrimsamsa (D30)
+                var planetThrimsamsa = Calculate.PlanetTrimshamshaD30Sign(planetName, time).GetSignName();
                 var thrimsamsaSignRelationship = Calculate.PlanetRelationshipWithSign(planetName, planetThrimsamsa, time);
                 //add planet thrimsamsa relationship to list
                 planetSignRelationshipList.Add(thrimsamsaSignRelationship);
@@ -12649,7 +13388,7 @@ namespace VedAstro.Library
             var planetRasiSign = Calculate.PlanetZodiacSign(planetName, time).GetSignName();
 
             //get planet navamsa sign
-            var planetNavamsaSign = Calculate.PlanetNavamsaSign(planetName, time);
+            var planetNavamsaSign = Calculate.PlanetNavamshaD9Sign(planetName, time).GetSignName();
 
             //declare total Ojayugmarasyamsa Bala as 0 first
             double totalOjayugmarasyamsaBalaInShashtiamsas = 0;
@@ -13016,7 +13755,7 @@ namespace VedAstro.Library
                 SwissEph ephemeris = new SwissEph();
 
                 // Convert DOB to ET
-                var jul_day_ET = Calculate.TimeToEphemerisTime(time);
+                var jul_day_ET = Calculate.TimeToJulianEphemerisTime(time);
 
                 //ephemeris.swe_calc(jul_day_ET, SwissEph.SE_ECL_NUT, 0, x, ref err);
 
@@ -13312,7 +14051,7 @@ namespace VedAstro.Library
         /// When the Moon is waning, take the distance from
         /// the Moon to the· Sun, and divide it by 3 for assessing
         /// Pakshabala. Moon, Jupiter, Venus and
-        /// Mercury are strong in Sukla Paksba and the others
+        /// Mercury are strong in Sukla Paksha and the others
         /// in Krishna Paksha.
         ///
         /// Note: Mercury is benefic or malefic based on planets conjunct with it
@@ -13379,7 +14118,9 @@ namespace VedAstro.Library
             if (pakshaBala == 0)
             {
                 //raise error
-                throw new Exception("Paksha bala not found, error!");
+                //throw new Exception("Paksha bala not found, error!");
+                //TODO better error handling, possibly error in logic
+                Console.WriteLine("Paksha bala not found, error!!!!");
             }
 
             return new Shashtiamsa(pakshaBala);
@@ -14007,6 +14748,41 @@ namespace VedAstro.Library
         #region TAGS STATIC
 
         /// <summary>
+        /// Gets all events names grouped by tags, for printing on website for user selection when generating events chart.
+        /// </summary>
+        public static JObject GetAllEventDataGroupedByTag()
+        {
+
+            JObject result = new JObject();
+
+            foreach (EventTag eventTag in Enum.GetValues(typeof(EventTag)))
+            {
+                var eventDataList = EventManager.GetEventDataListByTag(eventTag);
+                if (eventDataList.Any())
+                {
+                    JArray eventDataArray = new JArray();
+                    foreach (var eventData in eventDataList)
+                    {
+                        eventDataArray.Add(eventData.ToJson());
+                    }
+                    result[eventTag.ToString()] = eventDataArray;
+                }
+                else
+                {
+                    result[eventTag.ToString()] = new JArray();
+                }
+            }
+
+            return result;
+
+        }
+
+        /// <summary>
+        /// Gets all possible algorithm functions, for printing on website for user selection when generating events chart.
+        /// </summary>
+        public static JArray GetAllEventsChartAlgorithms() => Algorithm.All;
+
+        /// <summary>
         /// keywords or tag related to a house
         /// </summary>
         public static string GetHouseTags(HouseName house)
@@ -14294,29 +15070,6 @@ namespace VedAstro.Library
 
         //--------------------------------------------------------------------------------------------
 
-
-        /// <summary>
-        /// Given a list of planets will pick out the strongest planet based on Shadbala
-        /// </summary>
-        public static PlanetName PickOutStrongestPlanet(List<PlanetName> relatedPlanets, Time birthTime)
-        {
-            //if only 1 planet than no need to check
-            if (relatedPlanets.Count == 1) { return relatedPlanets[0]; }
-
-            //calculare strength for all given planets
-            var powerList = new Dictionary<PlanetName, double>();
-            foreach (var relatedPlanet in relatedPlanets)
-            {
-                var strength = Calculate.PlanetStrength(relatedPlanet, birthTime);
-                powerList.Add(relatedPlanet, strength.ToDouble());
-            }
-
-            //pickout highest value
-            var strongest = powerList.Aggregate((l, r) => l.Value > r.Value ? l : r);
-
-            //return strongest planet name
-            return strongest.Key;
-        }
 
         /// <summary>
         /// Gets the characteristic of signs

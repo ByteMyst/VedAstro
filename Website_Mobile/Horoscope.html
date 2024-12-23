@@ -19,49 +19,18 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Varta"> <!-- link, button, nav etc -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Gowun Dodum"> <!--  article text -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Homemade Apple"> <!--  cursive for quotes -->
-    <!-- DATE PICKER  (Vanilla Calendar) -->
-    <!-- NOTE : current JS code is dependent on version 2.4.0 so maintain, unless you got balls to go update VedAstro.js -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@uvarov.frontend/vanilla-calendar@2.4.0/build/vanilla-calendar.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@uvarov.frontend/vanilla-calendar@2.4.0/build/vanilla-calendar.min.js"></script>
-
-
-    <!--JQuery-->
-    <!--Note: JQuery needs to be loaded before bootstrap & vedastro.js-->
-    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
-    <script src="./js/VedAstro.js"></script>
-
 
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-
-        nav {
-            background-color: #333;
-            color: white;
-            padding: 1em;
-            display: flex;
-            justify-content: space-around;
-        }
-
-            nav a {
-                color: white;
-                text-decoration: none;
-            }
-
-
-        @media only screen and (max-width: 768px) {
-            .calendar-container {
-                margin-left: -100px;
-            }
+            font-family: 'Lexend Deca', serif !important;
         }
     </style>
+
+
 </head>
 <body style="background: #F0F2F5;">
     <!-- TO PLAY BAKING DONE SOUND -->
-    <audio autoplay="">Your browser does not support the html audio tag.</audio>
+    <audio autoplay=""></audio>
 
     <div id="app" class="min-vh-100 container-lg pt-4" style="background: #F0F2F5;">
         <div class="row flex-md-nowrap">
@@ -80,14 +49,13 @@
 
                         <!-- HEADER -->
                         <div id="PageHeader" title-text="Horoscope" description-text="Insight into a peron's
-            character, nature and general future. Over +370 planetary combinations are used." image-src="images/horoscope-banner.png"></div>
+            character, nature and general future. Over +370 planetary combinations are used." image-src="images/stars-above-me-banner.png"></div>
 
                         <!-- BODY CONTENT -->
                         <div>
                             <div class="d-md-flex justify-content-between">
-                                <!--  @*SELECTOR*@ -->
+                                <!-- @* SELECTOR INPUT*@ -->
                                 <div class="me-5">
-                                    <!-- @*INPUT*@ -->
                                     <div class="d-flex flex-wrap mb-5" style="max-width: 352px;">
                                         <div id="HoroscopeMainInputHolder" class="vstack gap-3">
 
@@ -101,36 +69,24 @@
                                                 <!-- @* AYANAMSA *@ -->
                                                 <div id="AyanamsaSelectorBox" class="input-group mb-2"></div>
 
-                                                <!-- @* CHART STYLE *@ -->
-                                                <div class="input-group">
-                                                    <label style="width: 134.4px;" class="input-group-text">
-                                                        <span class="iconify me-2" data-icon="gridicons:types" data-width="25" data-height="25"></span>
-                                                        Chart
-                                                    </label>
-                                                    <select @bind="SelectedChartStyle" id="ChartStyleSelectElement" class="form-select">
-                                                        <option value="South" selected="">South Style</option>
-                                                        <option value="North">North Style</option>
-                                                    </select>
-                                                </div>
-
                                                 <!-- @* HORARY NUMBER *@ -->
                                                 <!--  @*                 <div class="input-group">
-                                <span class="input-group-text" style="font-weight: 600; color: red;" id="2defe66d-ab03-4275-ba36-1c35a008063b">
-                                    Horary Number
-                                    <div style="cursor: help; float: right; margin-left: 8px; margin-top: -2px; scale: 0.75; opacity: 0.8;" _bl_2596="" aria-expanded="false">
-                                        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--icon-park" width="19" height="19" preserveAspectRatio="xMidYMid meet" viewBox="0 0 48 48" data-icon="icon-park:help" data-width="19"><g fill="none"><path fill="#2F88FF" stroke="#000" stroke-linejoin="round" stroke-width="4" d="M24 44C29.5228 44 34.5228 41.7614 38.1421 38.1421C41.7614 34.5228 44 29.5228 44 24C44 18.4772 41.7614 13.4772 38.1421 9.85786C34.5228 6.23858 29.5228 4 24 4C18.4772 4 13.4772 6.23858 9.85786 9.85786C6.23858 13.4772 4 18.4772 4 24C4 29.5228 6.23858 34.5228 9.85786 38.1421C13.4772 41.7614 18.4772 44 24 44Z"></path><path stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M24 28.6248V24.6248C27.3137 24.6248 30 21.9385 30 18.6248C30 15.3111 27.3137 12.6248 24 12.6248C20.6863 12.6248 18 15.3111 18 18.6248"></path><path fill="#fff" fill-rule="evenodd" d="M24 37.6248C25.3807 37.6248 26.5 36.5055 26.5 35.1248C26.5 33.7441 25.3807 32.6248 24 32.6248C22.6193 32.6248 21.5 33.7441 21.5 35.1248C21.5 36.5055 22.6193 37.6248 24 37.6248Z" clip-rule="evenodd"></path></g></svg>
-                                    </div>
-                                </span>
-                                <input type="number" class="form-control" placeholder="0">
-                            </div>
-                            *@ -->
+                                                    <span class="input-group-text" style="font-weight: 600; color: red;" id="2defe66d-ab03-4275-ba36-1c35a008063b">
+                                                        Horary Number
+                                                        <div style="cursor: help; float: right; margin-left: 8px; margin-top: -2px; scale: 0.75; opacity: 0.8;" _bl_2596="" aria-expanded="false">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--icon-park" width="19" height="19" preserveAspectRatio="xMidYMid meet" viewBox="0 0 48 48" data-icon="icon-park:help" data-width="19"><g fill="none"><path fill="#2F88FF" stroke="#000" stroke-linejoin="round" stroke-width="4" d="M24 44C29.5228 44 34.5228 41.7614 38.1421 38.1421C41.7614 34.5228 44 29.5228 44 24C44 18.4772 41.7614 13.4772 38.1421 9.85786C34.5228 6.23858 29.5228 4 24 4C18.4772 4 13.4772 6.23858 9.85786 9.85786C6.23858 13.4772 4 18.4772 4 24C4 29.5228 6.23858 34.5228 9.85786 38.1421C13.4772 41.7614 18.4772 44 24 44Z"></path><path stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M24 28.6248V24.6248C27.3137 24.6248 30 21.9385 30 18.6248C30 15.3111 27.3137 12.6248 24 12.6248C20.6863 12.6248 18 15.3111 18 18.6248"></path><path fill="#fff" fill-rule="evenodd" d="M24 37.6248C25.3807 37.6248 26.5 36.5055 26.5 35.1248C26.5 33.7441 25.3807 32.6248 24 32.6248C22.6193 32.6248 21.5 33.7441 21.5 35.1248C21.5 36.5055 22.6193 37.6248 24 37.6248Z" clip-rule="evenodd"></path></g></svg>
+                                                        </div>
+                                                    </span>
+                                                    <input type="number" class="form-control" placeholder="0">
+                                                </div>
+                                                *@ -->
 
                                             </div>
 
                                             <!-- @* BUTTONS *@ -->
                                             <div class="mt-2 d-flex justify-content-between">
-                                                <IconButton Id="IconButton_Advanced_Horoscope" IconName="gala:settings" Color="primary" SmallSize="true" TooltipPosition="bottom" TooltipText="Advanced (optional)" OnClickCallback="OnClickAdvanced_Horoscope(this)"></IconButton>
-                                                <IconButton Id="IconButton_Calculate_Horoscope" IconName="uim:process" Color="success" ButtonText="Calculate" OnClickCallback="OnClickCalculate_Horoscope(this)"></IconButton>
+                                                <div Id="IconButton_Advanced_Horoscope" IconName="gala:settings" Color="primary" SmallSize="true" TooltipPosition="bottom" TooltipText="Advanced (optional)" OnClickCallback="OnClickAdvanced_Horoscope(this)"></div>
+                                                <div Id="IconButton_Calculate_Horoscope" IconName="uim:process" Color="success" ButtonText="Calculate" OnClickCallback="OnClickCalculate_Horoscope(this)"></div>
                                             </div>
 
                                         </div>
@@ -142,9 +98,9 @@
                                 <div id="SidebarInfoBoxHolder" class="mt-md-0 mt-4 me-md-5">
                                     <!--when small give at top-->
                                     <div class="vstack gap-0 gap-md-2">
-                                        <div id="InfoBox_AskAI_Horoscope" MaxWidth="365" Title="Ask AI Chat" Description="Ask AI astrologer about your life aspects and horoscope" IconName="fluent-emoji:robot" IsNewTabOpen="true" ClickUrl="@PageRoute.ChatAPI"></div>
-                                        <div id="InfoBox_EasyImport_Horoscope" MaxWidth="365" Title="Easy Import" Description="Birth data from Jagannatha Hora, Light of KP (LOKPA) or Parashara's Light 9" IconName="fluent-emoji-flat:outbox-tray" IsNewTabOpen="true" ClickUrl="@PageRoute.ChatAPI"></div>
-                                        <div id="InfoBox_ForgotenTime_Horoscope" MaxWidth="365" Title="Forgoten Time" Description="Use advanced computation to find your lost birth time" IconName="noto:alarm-clock" IsNewTabOpen="true" ClickUrl="@PageRoute.ChatAPI"></div>
+                                        <div id="InfoBox_AskAI_Horoscope" MaxWidth="365" Title="Ask AI Chat" Description="Ask AI astrologer about your life aspects and horoscope" IconName="fluent-emoji:robot" IsNewTabOpen="true" ClickUrl="#"></div>
+                                        <div id="InfoBox_EasyImport_Horoscope" MaxWidth="365" Title="Easy Import" Description="Birth data from Jagannatha Hora, Light of KP (LOKPA) or Parashara's Light 9" IconName="fluent-emoji-flat:outbox-tray" IsNewTabOpen="true" ClickUrl="#"></div>
+                                        <div id="InfoBox_ForgotenTime_Horoscope" MaxWidth="365" Title="Forgoten Time" Description="Use advanced computation to find your lost birth time" IconName="noto:alarm-clock" IsNewTabOpen="true" ClickUrl="#"></div>
                                     </div>
                                 </div>
                             </div>
@@ -160,7 +116,7 @@
                                     <span @onclick="@(() => _jsRuntime.ScrollToDivById('HoroscopeMainInputHolder'))" style="cursor: pointer; font-size: 11.5px;margin-left: 44px;color: grey;margin-top: -19px;position: absolute;background-color: rgb(240, 242, 245);" class="px-1">INDEX</span>
 
                                     <!--  @* NAV LINKS *@
-                @* js function will set active by ID *@ -->
+                                    @* js function will set active by ID *@ -->
                                     <div class="list-group">
                                         <a id="HoroscopeChat-Link" class="list-group-item list-group-item-action" href="@_navigation.Uri#HoroscopeChat">AI Chat</a>
                                         <a id="Strength-Link" class="list-group-item list-group-item-action" href="@_navigation.Uri#Strength">Strength</a>
@@ -181,23 +137,27 @@
                                     <!-- @* Chat API *@ -->
                                     <div id="HoroscopeChat" class="scrollspy mb-5"></div>
 
-
                                     <!--  @* Strength *@ -->
                                     <div id="StrengthChartHolder" class="scrollspy"></div>
 
-                                    <!--                                         @* Sky Chart *@
-                                                       @*         <IconTitle Title="Sky Chart" IconName="solar:moon-stars-bold-duotone" TitleHolder="h4" />
-                                                       *@        <SkyChartViewer Id="SkyChart" ExtraClass="scrollspy" @ref="skyChartViewer" />
-                -->
-                                    <!-- @* TODO convert to JS code *@ -->
-                                    <IndianChart Id="IndianChart" ExtraClass="scrollspy" @ref="indianChartViewer" />
+                                    <!--  @* South/North Indian Chart *@ -->
+                                    <div id="IndianChartHolder" class="scrollspy"></div>
 
-                                    <!--  @* below made by vedastro.JS code *@ -->
+                                    <!-- @* Predictions *@ -->
+                                    <div id="HoroscopePredictionTexts"></div>
+
+
+                                    <!--                                         @* Sky Chart *@
+                                                                           @*         <IconTitle Title="Sky Chart" IconName="solar:moon-stars-bold-duotone" TitleHolder="h4" />
+                                                                           *@        <SkyChartViewer Id="SkyChart" ExtraClass="scrollspy" @ref="skyChartViewer" />
+                                    -->
+
                                     <div id="PlanetDataTable" class="scrollspy"></div>
 
                                     <div id="HouseDataTable" class="scrollspy"></div>
 
                                     <div id="AshtakvargaTable" class="scrollspy"></div>
+
 
                                     <!-- @* Predictions *@ -->
                                     <div id="Prediction" class="scrollspy">
@@ -233,22 +193,43 @@
     <!-- Bootstrap CSS : Used for styling everything-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css">
 
-    <!-- Bootstrap  JS : Used to animate some components like Accordion, dropdown, BUNDLE because popper.js-->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap/dist/js/bootstrap.bundle.min.js">                </script>
+    <!-- Bootstrap  JS : Used to animate some components like Accordion, dropdown, BUNDLE because popper.js -->
+    <script src="./js/third-party/bootstrap.bundle.min.js">    </script>
 
     <!--Icon Generator Lib -->
-    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.1.0/dist/iconify-icon.min.js"></script>
+    <script src="./js/third-party/iconify-icon.min.js"></script>
 
     <!--Chart JS  : used in planet strength chart-->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
+    <script src="./js/third-party/chart.umd.min.js"></script>
 
     <!--Sweet Alert Lib -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2/dist/sweetalert2.all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/mattboldt/typed.js@2.0.11/lib/typed.min.js"></script>
+    <script src="./js/third-party/sweetalert2.all.min.js"></script>
+    <script src="./js/third-party/typed.min.js"></script>
+
+    <!-- SVG.js used for events chart animation-->
+    <script src="./js/third-party/svg.min.js"></script>
+
+    <!-- JS Dark Mode button-->
+    <script src="./js/third-party/darkmode-js.min.js"></script>
+
+    <!-- DATE PICKER  (Vanilla Calendar) -->
+    <!-- NOTE : current JS code is dependent on version 2.4.0 so maintain, unless you got balls to go update VedAstro.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@uvarov.frontend/vanilla-calendar@2.4.0/build/vanilla-calendar.min.css">
+    <script src="./js/third-party/vanilla-calendar.min.js"></script>
+
+    <!--Tooltip Lib -->
+    <script src="./js/third-party/popper.min.js"></script>
+    <script src="./js/third-party/tippy.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tippy.js/dist/tippy.min.css">
+
+    <!--JQuery-->
+    <!--Note: JQuery needs to be loaded before bootstrap & vedastro.js-->
+    <script src="./js/third-party/jquery.min.js"></script>
+    <script src="./js/VedAstro.js"></script>
 
     <!-- JS APP CODE -->
-    <script src="./js/app.js"></script>
+    <script src="./js/app.js" defer></script>
     <script src="./js/Horoscope.js" defer></script>
 
 </body>
