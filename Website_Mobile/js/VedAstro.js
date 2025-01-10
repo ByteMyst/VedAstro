@@ -48,8 +48,8 @@ class VedAstro {
      * The default API domain.
      */
     //static ApiDomain = "http://localhost:7071/api";
+    //static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
     static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
-    //static ApiDomain = "https://vedastroapibeta.azurewebsites.net/api";
 
     /**
        * get user ID from storage else give "101" guest id
@@ -210,30 +210,27 @@ class CommonTools {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    //will auto get payload out of json and checks reports failures to user
-    // Define an asynchronous function named 'GetAPIPayload'
-    static async GetAPIPayload(url, payload = null) {
+    // will auto get payload out of json and checks reports failures to user
+    // throws exception if fail
+    static async GetAPIPayload(url) {
         try {
-            // If a payload is provided, prepare options for a POST request
-            const options = payload
-                ? {
-                    method: "POST", // Specify the HTTP method as POST
-                    headers: { "Content-Type": "application/json" }, // Set the content type of the request to JSON
-                    body: JSON.stringify(payload), // Convert the payload to a JSON string and include it in the body of the request
-                }
-                : {}; // If no payload is provided, create an empty options object, which defaults to a GET request
+
             // Send the request to the specified URL with the prepared options
-            const response = await fetch(url, options);
+            const response = await fetch(url);
+
             // If the response is not ok (status is not in the range 200-299), throw an error
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+
             // Parse the response body as JSON
             const data = await response.json();
+
             // If the 'Status' property of the parsed data is not 'Pass', throw an error
             if (data.Status !== "Pass") {
                 throw new Error(data.Payload);
             }
+
             // If everything is ok, return the 'Payload' property of the parsed data
             return data.Payload;
         } catch (error) {
@@ -280,10 +277,49 @@ class CommonTools {
     }
 
     /**
-     * takes a camel case string and returns a string with spaces between the words
+     * Takes a camel case or pascal case string and returns a string with spaces between the words.
+     * Converts "MyNameIs" -> "My Name Is", "myNameIs" -> "My Name Is"
      */
     static CamelPascalCaseToSpaced(camelCase) {
-        return camelCase.replace(/(\d)([A-Z])/g, '$1 $2').replace(/([A-Z])/g, ' $1').trim();
+        let result = camelCase
+            .replace(/(\d)([A-Z])/g, '$1 $2')          // Insert space between a digit and uppercase letter
+            .replace(/([a-z])([A-Z])/g, '$1 $2')       // Insert space between lowercase and uppercase letters
+            .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')  // Insert space between consecutive uppercase letters followed by lowercase
+            .trim();
+
+        // Capitalize the first character if the original string starts with a lowercase letter
+        if (camelCase[0] !== camelCase[0].toUpperCase()) {
+            result = result.charAt(0).toUpperCase() + result.slice(1);
+        }
+
+        return result;
+    }
+
+    /**
+     * Converts a name given in all caps to Pascal Case, but not initials.
+     * @param {string} name - The name to be converted.
+     * @returns {string} The converted name.
+     */
+    static convertNameToPascalCase(name) {
+        return name.split(' ').map(word => {
+            // If the word is longer than 2 characters, it's probably not an initial
+            if (word.length > 2) {
+                // Convert the first character to uppercase and the rest to lowercase
+                return word.charAt(0) + word.slice(1).toLowerCase();
+            } else {
+                // Leave the word as it is (all uppercase)
+                return word;
+            }
+        }).join(' ');
+    }
+
+    /**
+     * Converts text to URL-safe text.
+     * @param {string} text - The text to convert.
+     * @returns {string} - The URL-safe text.
+     */
+    static toUrlSafe(text) {
+        return encodeURIComponent(text);
     }
 
     static IsMobile() {
@@ -308,6 +344,7 @@ class CommonTools {
 
         return text.length > maxChars ? `${text.substring(0, maxChars)}...` : text;
     }
+
 
 }
 
@@ -2033,7 +2070,7 @@ class DesktopSidebar {
 
         <!-- WEBSITE VERSION STAMP -->
         <div class="sticky-bottom position-fixed mb-3 ms-5" style="color: #8f8f8f; font-size: 9px; z-index: 1;">
-            <div style="cursor: pointer;" class="hstack gap-1">
+            <div onclick="window.location.href='./MadeOnEarth.html'" style="cursor: pointer;" class="hstack gap-1">
                 <iconify-icon icon="ion:earth" width="12" height="12" ></iconify-icon>
                 <span>Made on Earth</span>
             </div>
@@ -2125,13 +2162,15 @@ class PageTopNavbar {
         // Generate the HTML for the button links
         let buttonLinksHtml = "";
         this.ButtonLinks.forEach((link) => {
+            let targetAttr = link.target ? `target="${link.target}"` : '';
             buttonLinksHtml += `
-        <button style="height: 37.1px; width: fit-content; " class="btn-sm hstack gap-2 iconButton btn-outline-primary btn" >
-          <iconify-icon icon="${link.icon}" width="25" height="25" ></iconify-icon>
-          ${link.text}
-        </button>
+        <a href="${link.href}" ${targetAttr} style="height: 37.1px; width: fit-content;" class="btn-sm hstack gap-2 iconButton btn-outline-primary btn">
+            <iconify-icon icon="${link.icon}" width="25" height="25"></iconify-icon>
+            ${link.text}
+        </a>
       `;
         });
+
 
         // Generate the HTML for the more links
         let moreLinksHtml = "";
@@ -2269,8 +2308,8 @@ class PersonSelectorBox {
     */
     GetSelectedPerson() {
         try {
-            // Get the selected person from local storage
-            const selectedPersonJson = localStorage.getItem(this.SelectedPersonStorageKey);
+            // Get the selected person from session storage (so that unique across tabs)
+            const selectedPersonJson = sessionStorage.getItem(this.SelectedPersonStorageKey);
 
             if (!selectedPersonJson) { return null; }
 
@@ -2290,8 +2329,8 @@ class PersonSelectorBox {
      * Sets the selected person.
      */
     SetSelectedPerson(person) {
-        // Save the selected person ID to local storage
-        localStorage.setItem(this.SelectedPersonStorageKey, JSON.stringify(person));
+        // Save the selected person ID to session storage (so that unique across tabs)
+        sessionStorage.setItem(this.SelectedPersonStorageKey, JSON.stringify(person));
     }
 
     // Save a reference to this instance for global access
@@ -2341,7 +2380,6 @@ class PersonSelectorBox {
             });
         }
     }
-
 
     //gets list of person to display (checks if underlying cache has been removed)
     async getPersonListDisplay() {
@@ -2427,8 +2465,8 @@ class PersonSelectorBox {
         // Get the search text from the input field
         const searchText = event.target.value.toLowerCase();
 
-        // Filter the person lists based on the search text
-        var allPersonDropItems = $(`#${this.ElementID}`).find('.dropdown-menu li');
+        // Filter only the person items based on the search text
+        var allPersonDropItems = $(`#${this.ElementID}`).find('.dropdown-menu li.person-item');
         allPersonDropItems.each(function () {
             const personName = $(this).text().toLowerCase();
             if (personName.includes(searchText)) {
@@ -2450,8 +2488,8 @@ class PersonSelectorBox {
         // Auto set selected person from previous selection
         let selectedPersonText = 'Select Person'; //default
 
-        //check if any person has been selected before (LocalStorage)
-        let personFromStorage = JSON.parse(localStorage.getItem(this.SelectedPersonStorageKey));
+        //check if any person has been selected before (session storage)
+        let personFromStorage = JSON.parse(sessionStorage.getItem(this.SelectedPersonStorageKey));
         if (personFromStorage && Object.keys(personFromStorage).length !== 0) {
             let parsedPerson = new Person(personFromStorage);
             selectedPersonText = parsedPerson.DisplayName;
@@ -2494,10 +2532,32 @@ class PersonSelectorBox {
 
           </ul>
         </div>
-        <!-- NOTE: storage key is inject into URL, so that "add person" page knows where to set, for auto selection on return -->
-        <a href="./AddPerson.html?SelectedPersonStorageKey=${this.SelectedPersonStorageKey}" style="height:37.1px; width: fit-content; " class=" btn-primary btn ms-2">
-          <iconify-icon icon="ant-design:user-add-outlined" width="25" height="25" ></iconify-icon>
-        </a>
+        <div class="btn-group ">
+          <button class="ms-2 px-0 btn btn-primary dropdown-toggle" type="button" style="height:37.1px; width: fit-content; " data-bs-toggle="dropdown" aria-expanded="false">
+            <iconify-icon class="" icon="mi:options-horizontal" width="25" height="25" ></iconify-icon>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <!-- NOTE: storage key is inject into URL, so that "add person" page knows where to set, for auto selection on return -->
+            <li>
+                <a class="dropdown-item gap-2 d-flex align-items-center" href="./AddPerson.html?SelectedPersonStorageKey=${this.SelectedPersonStorageKey}">
+                    <iconify-icon class="" icon="ant-design:user-add-outlined" width="25" height="25" ></iconify-icon>
+                    Add Person
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item gap-2 d-flex align-items-center" href="./EditPerson.html?SelectedPersonStorageKey=${this.SelectedPersonStorageKey}" onclick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickEditPerson(event)">
+                    <iconify-icon class="" icon="uil:edit" width="25" height="25" ></iconify-icon>
+                    Edit Person
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item gap-2 d-flex align-items-center" href="./PersonList.html">
+                    <iconify-icon class="" icon="line-md:list" width="25" height="25" ></iconify-icon>
+                    View All
+                </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   `;
@@ -2521,7 +2581,7 @@ class PersonSelectorBox {
     async generatePublicPersonListHtml() {
         const html = (await this.getPublicPersonListDisplay())
             .map((person) => {
-                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item" style="cursor: pointer;">${person.DisplayName}</li>`;
+                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item person-item" style="cursor: pointer;">${person.DisplayName}</li>`;
             })
             .join("");
 
@@ -2532,7 +2592,7 @@ class PersonSelectorBox {
     async generatePersonListHtml() {
         const html = (await this.getPersonListDisplay())
             .map((person) => {
-                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item" style="cursor: pointer;">${person.DisplayName}</li>`;
+                return `<li onClick="window.vedastro.PersonSelectorBoxInstances['${this.ElementID}'].onClickPersonName('${person.PersonId}')" class="dropdown-item person-item" style="cursor: pointer;">${person.DisplayName}</li>`;
             })
             .join("");
 
@@ -2547,6 +2607,22 @@ class PersonSelectorBox {
             $(`#${this.ElementID}`).find(`.${this.SearchInputElementClass}`).focus();
         }
 
+    }
+
+    // Handle click on the "Edit Person" link
+    onClickEditPerson(event) {
+        const selectedPerson = this.GetSelectedPerson();
+        if (!selectedPerson) {
+            // Prevent navigation to the edit page
+            event.preventDefault();
+            // Show message to the user
+            Swal.fire('Please select a person first', '', 'warning');
+        } else if (selectedPerson.OwnerId === '101') {
+            // Prevent navigation to the edit page
+            event.preventDefault();
+            // Show error message that public profiles can't be edited
+            Swal.fire('Public profiles cannot be edited', '', 'error');
+        }
     }
 
     //------------------------------------------------ STATIC FUNCS ----------------------
@@ -2685,6 +2761,7 @@ class IconButton {
         this.Color = element.getAttribute("Color") || "";
         this.IconName = element.getAttribute("IconName") || "";
         this.ExtraStyle = element.getAttribute("ExtraStyle") || "";
+        this.ExtraClass = element.getAttribute("ExtraClass") || "";
         this.ButtonText = element.getAttribute("ButtonText") || "";
         this.OnClickCallback = element.getAttribute("OnClickCallback") || null;
 
@@ -2705,7 +2782,7 @@ class IconButton {
     async generateHtmlButton() {
         // Return the HTML for the button
         return `
-      <button onclick="${this.OnClickCallback}" style="${this.ExtraStyle} justify-content: center; height:37.1px; width: fit-content; " class="btn-sm hstack gap-2 iconButton btn-${this.Color} btn">
+      <button onclick="${this.OnClickCallback}" style="${this.ExtraStyle} justify-content: center; height:37.1px; width: fit-content; " class="${this.ExtraClass} btn-sm hstack gap-2 iconButton btn-${this.Color} btn">
         <iconify-icon icon="${this.IconName}" width="25" height="25"></iconify-icon>
         ${this.ButtonText}
       </button>
@@ -2761,12 +2838,12 @@ class TimeInputSimple {
         // Save a reference to this instance for global access
         this.saveInstanceReference();
 
-        // Call the method to initialize the time location input
-        this.initializeTimeLocationInput();
+        // Call the method to create the instance
+        this.initialize();
     }
 
     // Method to initialize the time location input
-    async initializeTimeLocationInput() {
+    initialize() {
         // Get the element with the given ID
         const element = document.getElementById(this.ElementID);
 
@@ -2774,11 +2851,11 @@ class TimeInputSimple {
         const labelText = element.getAttribute("LabelText");
 
         // Generate the HTML for the time location input and inject it into the element
-        element.innerHTML = await this.generateTimeLocationInputHtml(labelText);
+        element.innerHTML = this.generateHtml(labelText);
     }
 
     // Method to generate the HTML for the time location input
-    async generateTimeLocationInputHtml(labelText) {
+    generateHtml(labelText) {
         //language=html
         var outputHtml = `
     <style>
@@ -2998,6 +3075,40 @@ class TimeInputSimple {
             "Year": year
         };
     }
+
+    /**
+     * Sets the input fields with the provided time data.
+     * @param {Time} timeData - The time data to set.
+     */
+    setInputDateTime(timeData) {
+        const stdTime = timeData.StdTime; // "13:54 25/10/1992 +08:00"
+        const [timePart, datePart, timezone] = stdTime.split(' ');
+        const [hour24, minute] = timePart.split(':');
+        const [day, month, year] = datePart.split('/');
+
+        // Convert 24-hour format to 12-hour format
+        let hour = parseInt(hour24);
+        let meridian = 'AM';
+        if (hour >= 12) {
+            meridian = 'PM';
+            if (hour > 12) {
+                hour -= 12;
+            }
+        }
+        if (hour === 0) {
+            hour = 12;
+        }
+        hour = hour.toString().padStart(2, '0');
+
+        // Set values into the inputs
+        document.getElementById(this.HourInputID).innerText = hour;
+        document.getElementById(this.MinuteInputID).innerText = minute;
+        document.getElementById(this.MeridianInputID).innerText = meridian;
+        document.getElementById(this.DateInputID).innerText = day;
+        document.getElementById(this.MonthInputID).innerText = month;
+        document.getElementById(this.YearInputID).innerText = year;
+    }
+
 }
 
 /**
@@ -3340,8 +3451,19 @@ class GeoLocationInput {
         };
 
     }
-}
 
+    /**
+     * Sets the input fields with the provided location data.
+     * @param {GeoLocation} locationData - The location data to set.
+     */
+    setInputLocation(locationData) {
+        // Set values into inputs
+        this.$locationNameInput.val(locationData.Name);
+        this.$latitudeInput.val(locationData.Latitude);
+        this.$longitudeInput.val(locationData.Longitude);
+    }
+
+}
 
 /**
  * Represents a time location input component.
@@ -3356,6 +3478,9 @@ class TimeLocationInput {
     GeoLocationInputID;
     TimeInputSimpleInstance;
     GeoLocationInputInstance;
+    TimezoneOffsetInputID;
+    TimezoneOffsetInputHolderID;
+    userModifiedTimezoneOffset = false; // Flag to track if user modified the timezone offset
 
     // Constructor to initialize the object
     constructor(elementId) {
@@ -3375,85 +3500,117 @@ class TimeLocationInput {
         this.TimezoneOffsetInputID = `TimezoneOffsetInputID-${randoTron}`;
         this.TimezoneOffsetInputHolderID = `TimezoneOffsetInputHolderID-${randoTron}`; //to hide/show
 
-        // Call the method to initialize the main body of the page header
+        // Initialize the main body
         this.initializeMainBody();
-
     }
 
-    // Method to initialize the main body of the page header
-    async initializeMainBody() {
+    // Method to initialize the main body
+    initializeMainBody() {
         // Empty the content of the element with the given ID
         $(`#${this.ElementID}`).empty();
 
         // Generate the HTML for the page header and inject it into the element
-        $(`#${this.ElementID}`).html(await this.generateHtmlBody());
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
 
-        // render subview components via code now that sub view base HTML is in DOM
+        // Render subview components now that the base HTML is in the DOM
         this.TimeInputSimpleInstance = new TimeInputSimple(this.TimeInputSimpleID);
         this.GeoLocationInputInstance = new GeoLocationInput(this.GeoLocationInputID);
 
-        //when time or location input is ready,
-        //update timezone offset accurately
+        // Attach event handlers
         this.attachEventHandlers();
     }
 
     attachEventHandlers() {
-
-        //when time or location input is ready,
-        //update timezone offset accurately
+        // When time or location input is updated, update timezone offset accurately
         $(document).on('locationUpdated', (event) => this.updateTimezoneOffset());
         $(document).on('timeUpdated', (event) => this.updateTimezoneOffset());
 
-
+        // Attach event listener to detect if the user modifies the timezone offset input field
+        $(`#${this.TimezoneOffsetInputID}`).on('input', (event) => {
+            this.userModifiedTimezoneOffset = true;
+        });
     }
 
-    //when time or location input is ready,
-    //update timezone offset accurately
+    // When time or location input is updated, update timezone offset accurately
     async updateTimezoneOffset() {
-        //make sure both time & location is valid (filled)
+        // Make sure both time & location are valid (filled)
         var timeIsValid = this.TimeInputSimpleInstance.isValid();
         var locationIsValid = this.GeoLocationInputInstance.isValid();
 
-        //if both is filled, then update timezone input using API
+        // If both are filled, then update timezone input using API
         if (timeIsValid && locationIsValid) {
-            // get the inputed location & time data
+            // Get the inputted location & time data
             const inputTime = this.TimeInputSimpleInstance.getInputDateTime();
             const inputLocation = this.GeoLocationInputInstance.getInputLocation();
 
-            // call API to get exact timezone for location at give time
-            var timeZone = await this.getTimezoneForLocationFromApi(inputLocation.Name, inputLocation.Latitude, inputLocation.Longitude, inputTime.Hour24, inputTime.Minute, inputTime.Date, inputTime.Month, inputTime.Year); // Format: +08:00
+            // Call API to get exact timezone for location at given time
+            var timeZone = await this.getTimezoneForLocationFromApi(
+                inputLocation.Name,
+                inputLocation.Latitude,
+                inputLocation.Longitude,
+                inputTime.Hour24,
+                inputTime.Minute,
+                inputTime.Date,
+                inputTime.Month,
+                inputTime.Year
+            ); // Format: +08:00
 
-            //inject correct timezone into view
+            // Inject correct timezone into view
             $(`#${this.TimezoneOffsetInputID}`).val(timeZone);
+
+            // Since we updated the value programmatically, reset the flag
+            this.userModifiedTimezoneOffset = false;
         }
     }
 
-
     // Method to generate the HTML for the page header
-    async generateHtmlBody() {
+    generateHtmlBody() {
         return `
-        <div id="${this.TimeInputSimpleID}" LabelText="Time"></div>
-        <!-- Timezone Offset (advanced menu) -->
-        <div id="${this.TimezoneOffsetInputHolderID}" style="display:none;">
-            <div class="input-group mt-3">
-                <span class="input-group-text gap-2 py-1" style="width: 136px;"><iconify-icon icon="stash:globe-timezone-light" width="35" height="35"></iconify-icon>Timezone</span>
-                <input id="${this.TimezoneOffsetInputID}" type="text" class="form-control" placeholder="+00:00" style="font-weight: 600; font-size: 16px;">
+            <div id="${this.TimeInputSimpleID}" LabelText="Time"></div>
+            <!-- Timezone Offset (advanced menu) -->
+            <div id="${this.TimezoneOffsetInputHolderID}" style="display:none;">
+                <div class="input-group mt-3">
+                    <span class="input-group-text gap-2 py-1" style="width: 136px;">
+                        <iconify-icon icon="stash:globe-timezone-light" width="35" height="35"></iconify-icon>Timezone
+                    </span>
+                    <input id="${this.TimezoneOffsetInputID}" type="text" class="form-control" placeholder="+00:00" style="font-weight: 600; font-size: 16px;">
+                </div>
             </div>
-        </div>
 
-        <div id="${this.GeoLocationInputID}" class="mt-3" LabelText="Map"></div>
-    `;
+            <div id="${this.GeoLocationInputID}" class="mt-3" LabelText="Map"></div>
+        `;
     }
 
-    // Method to get the time and location as a JSON object
-    // exp out : {"StdTime":"13:54 25/10/1992 +08:00","Location":{"Name":"Taiping","Longitude":103.82,"Latitude":1.352}}
+    /**
+     * Method to get the time and location as a JSON object.
+     * Example output: {"StdTime":"13:54 25/10/1992 +08:00","Location":{"Name":"Taiping","Longitude":103.82,"Latitude":1.352}}
+     */
     async getTimeJson() {
-        // get the inputed location & time data
+        // Get the inputted location & time data
         const inputTime = this.TimeInputSimpleInstance.getInputDateTime();
         const inputLocation = this.GeoLocationInputInstance.getInputLocation();
 
         // Construct the StdTime string in the format "HH:MM DD/MM/YYYY tmz"
-        var timeZone = await this.getTimezoneForLocationFromApi(inputLocation.Name, inputLocation.Latitude, inputLocation.Longitude, inputTime.Hour24, inputTime.Minute, inputTime.Date, inputTime.Month, inputTime.Year); // Format: +08:00
+        let timeZone;
+
+        // Check if the user modified the timezone offset 
+        // TODO NOTE: server does not respect inputed timezone
+        if (this.userModifiedTimezoneOffset) {
+            timeZone = $(`#${this.TimezoneOffsetInputID}`).val(); // Get the value from the input field
+        } else {
+            // Call API to get exact timezone for location at given time
+            timeZone = await this.getTimezoneForLocationFromApi(
+                inputLocation.Name,
+                inputLocation.Latitude,
+                inputLocation.Longitude,
+                inputTime.Hour24,
+                inputTime.Minute,
+                inputTime.Date,
+                inputTime.Month,
+                inputTime.Year
+            ); // Format: +08:00
+        }
+
         const stdTime = `${inputTime.Hour24}:${inputTime.Minute} ${inputTime.Date}/${inputTime.Month}/${inputTime.Year} ${timeZone}`;
 
         // Construct the timeObject with StdTime and Location properties
@@ -3467,9 +3624,8 @@ class TimeLocationInput {
     }
 
     async getTimezoneForLocationFromApi(locationName, latitude, longitude, hour, minute, date, month, year) {
-
         // Construct API URL
-        const apiUrl = `${VedAstro.ApiDomain}/Calculate/GeoLocationToTimezone/Location/${locationName}/Coordinates/${latitude},${longitude}/Time/${hour}:${minute}/${date}/${month}/${year}/+00:00`;
+        const apiUrl = `${VedAstro.ApiDomain}/Calculate/GeoLocationToTimezone/Location/${encodeURIComponent(locationName)}/Coordinates/${latitude},${longitude}/Time/${hour}:${minute}/${date}/${month}/${year}/+00:00`;
 
         // Make API call and handle response
         const response = await fetch(apiUrl);
@@ -3477,8 +3633,16 @@ class TimeLocationInput {
         const data = await response.json();
         if (data.Status === "Pass") {
             return data.Payload.GeoLocationToTimezone;
-        }
+        } else {
+            // Handle error, notify the user
+            Swal.fire({
+                icon: 'error',
+                title: 'Auto detect timezone failed!',
+                text: 'Could not detect accurate timezone for given location & time. Try input manually.'
+            });
 
+            return "+00:00"; // Default to UTC if API call fails
+        }
     }
 
     static getSystemTimezone() {
@@ -3538,781 +3702,29 @@ class TimeLocationInput {
         return false;
     }
 
-}
+    /**
+     * Sets the input fields with the provided birth time data.
+     * @param {Time} birthTime - The birth time data to set.
+     */
+    setInputDateTime(birthTime) {
+        this.TimeInputSimpleInstance.setInputDateTime(birthTime);
+        this.GeoLocationInputInstance.setInputLocation(birthTime.Location);
 
-//Helps to create a table with astro data columns
-//TODO Marked for oblivion replaced with AllAstroDataTable
-class AstroTable {
-    // Class fields
-    Ayanamsa = "Lahiri";
-    ElementID = ""; //ID of main div where table & header will be injected
-    TableId = ""; //ID of table set in HTML, injected during init
-    ShowHeader = true; //default enabled, header with title, icon and edit button
-    HeaderIcon = "twemoji:ringed-planet"; //default enabled, header with title, icon and edit button
-    KeyColumn = ""; //Planet or House
-    EditButtonId = ""; //used to hook up edit button to show popup
-    ColumnData = []; //data on selected columns
-    EnableSorting = false; //sorting disabled by default
-    SaveSettings = true; //save settings to browser storage or not, enabled by default
+        // Extract the timezone offset from birthTime.StdTime
+        const stdTime = birthTime.StdTime; // "13:54 25/10/1992 +08:00"
+        const parts = stdTime.split(' ');
+        const timezoneOffset = parts[2]; // "+08:00"
 
-    //list of API calls that can be used in table (filled on load)
-    //NOTE : data in localStorage is subject to "Update Purge"
-    get APICalls() {
-        let apiCalls = localStorage.getItem('APICalls');
-        return apiCalls ? JSON.parse(apiCalls) : [];
+        // Set the timezone offset in the input field
+        $(`#${this.TimezoneOffsetInputID}`).val(timezoneOffset);
     }
 
-    set APICalls(value) {
-        localStorage.setItem('APICalls', JSON.stringify(value));
-    }
-
-
-    //DEFAULT COLUMNS when no column data is supplied or when reset button is clicked
-    DefaultColumns = [
-        { API: "PlanetZodiacSign", Enabled: true, Name: "Sign" },
-        { API: "PlanetConstellation", Enabled: true, Name: "Star" },
-        { API: "HousePlanetOccupiesKP", Enabled: true, Name: "Occupies" },
-        { API: "HousesOwnedByPlanetKP", Enabled: true, Name: "Owns" },
-        { API: "PlanetLordOfZodiacSign", Enabled: true, Name: "Sign Lord" },
-        { API: "PlanetLordOfConstellation", Enabled: true, Name: "Star Lord" },
-        { API: "PlanetSubLordKP", Enabled: true, Name: "Sub Lord" },
-        { API: "Empty", Enabled: false, Name: "Empty" },
-        { API: "Empty", Enabled: false, Name: "Empty" },
-    ];
-
-    constructor(rawSettings) {
-        //correct if property names is camel case (for Blazor)
-        var settings = CommonTools.CamelCaseKeysToPascalCase(rawSettings);
-
-        //if column data is not supplied use default
-        if (!settings.ColumnData) {
-            settings.ColumnData = AstroTable.DefaultColumns;
-        }
-
-        //expand data inside settings input
-        this.ElementID = settings.ElementID;
-        this.TableId = `${this.ElementID}_Table`;
-        this.ShowHeader = settings.ShowHeader;
-        this.HeaderIcon = settings.HeaderIcon;
-        this.SaveSettings = settings.SaveSettings;
-
-        //based on table ID try get any settings if saved from before
-        var savedTableSettings = localStorage.getItem(this.TableId);
-
-        //only continue if settings are saved and featured enabled in settings
-        if (this.SaveSettings || savedTableSettings) {
-            //parse the data
-            let jsonObject = JSON.parse(savedTableSettings);
-
-            //set back all the exact settings from before
-            this.KeyColumn = jsonObject["KeyColumn"];
-            this.ColumnData = jsonObject["ColumnData"];
-            this.EnableSorting = jsonObject["EnableSorting"];
-        }
-        //if null use data pumped in via constructor (defaults, when click Reset)
-        else {
-            this.KeyColumn = settings.KeyColumn;
-            this.ColumnData = settings.ColumnData;
-            this.EnableSorting = settings.EnableSorting;
-        }
-    }
-
-    async ShowEditTableOptions() {
-        // show loading
-        CommonTools.ShowLoading();
-
-        //pump in data about table settings to show in popup
-        var htmlPopup = await this.GenerateTableEditorHtml(
-            this.ColumnData,
-            this.KeyColumn
-        );
-
-        //used to "Hoist" table reference for later event handlers firing
-        var instance = this;
-
-        var swalSettings = {
-            width: "auto",
-            title: "Edit Table",
-            html: htmlPopup,
-            focusConfirm: false,
-
-            //after User clicks OK
-            //get value from dialog box & save it for later use
-            preConfirm: () => {
-                //parses data from popup and saved it for later
-                AstroTable.UpdateDateColumns(this.ColumnData);
-
-                //update enable sorting switch
-                this.EnableSorting = $("#TableSortingEnableSwitch").is(":checked");
-
-                //get value from Key Column selector & save it
-                this.KeyColumn = $("#KeyColumnInput").val();
-
-                //clone all setting to Local Storage for future use under TableID which should be unique
-                localStorage.setItem(this.TableId, this.ToJsonString());
-
-                Swal.fire(
-                    "Saved!",
-                    "<strong>Recalculate</strong> to see changes!",
-                    "success"
-                );
-            },
-            //load saved values into view before showing to user
-            //note: not all after load is done here, some data is fed into HTML maker
-            didOpen: (popupElm) => {
-                //SORT SWITCH
-                //set switch based on what was set before
-                $("#TableSortingEnableSwitch").prop("checked", instance.EnableSorting);
-
-                //KEY COLUMN
-                //attach one 1 time event reload popup if key column was changed
-                //because API calls are different for different key columns
-                $("#KeyColumnInput").one("change", async (eventObj) => {
-                    instance.KeyColumn = $(eventObj.target).val(); //save value
-
-                    //tell user API calls need to be updated
-                    await Swal.fire(
-                        "Update API Calls",
-                        `You've changed the Key Column to <strong>${instance.KeyColumn}</strong>, update the API calls to match.`,
-                        "info"
-                    );
-
-                    instance.ShowEditTableOptions(); //reload panel
-                });
-
-                //RESET BUTTON
-                //attach one 1 time event reload popup if Reset button clicked
-                $("#EditTableResetButton").one("click", async (eventObj) => {
-                    //clear saved browser settings, this will make defaults to load in constructor
-                    localStorage.setItem(instance.TableId, "");
-
-                    //tell user API calls need to be updated
-                    await Swal.fire(
-                        "Reset done!",
-                        "Please standby for auto page <strong>Refresh</strong>",
-                        "success"
-                    );
-
-                    //reload page
-                    location.reload();
-                });
-            },
-        };
-
-        // use pop up to show editor, and save results for later use
-        Swal.fire(swalSettings);
-
-        let selectizeConfigSingle = {
-            score: function (search) {
-                var score = this.getScoreFunction(search);
-                return function (item) {
-                    return score(item) * (1 + Math.min(item.text.indexOf(search), 1));
-                };
-            },
-            theme: "bootstrap",
-
-            //NOTE: below is to enable typing & search of API dropdown
-            onFocus: function () {
-                var value = this.getValue();
-                if (value.length > 0) {
-                    this.clear(true);
-                    setTimeout(() => {
-                        if (this.settings.selectOnTab) {
-                            this.setActiveOption(this.getOption(value));
-                        }
-                        this.settings.score = null;
-                    }, 100);
-                }
-            },
-            onBlur: function () {
-                if (
-                    this.getValue().length == 0 &&
-                    this.getValue() != this.lastValidValue
-                ) {
-                    this.setValue(this.lastValidValue);
-                }
-            },
-        };
-
-        //initialize Doped select options, with search for each dropdown
-        for (
-            var columnNumber = 0;
-            columnNumber < this.ColumnData.length;
-            columnNumber++
-        ) {
-            $(`#SelecteAPI${columnNumber}Dropdown`).selectize(selectizeConfigSingle);
-        }
-    }
-
-    //given the full column array, extract out only the filtered endpoint
-    GetAllEnabledEndpoints() {
-        // Filter the ColumnData array to get only the columns where Enabled is true
-        let enabledColumns = this.ColumnData.filter((column) => column.Enabled);
-
-        // Map the enabledColumns to their respective API and return the result
-        let apis = enabledColumns.map((column) => column.Api);
-
-        return apis;
-    }
-
-    GetNiceColumnNameFromRawAPIName(rawApiName) {
-        for (let i = 0; i < this.ColumnData.length; i++) {
-            if (this.ColumnData[i].Api === rawApiName) {
-                return this.ColumnData[i].Name;
-            }
-        }
-
-        // return raw name if no matching API name is found
-        return rawApiName;
-    }
-
-    //given name of API call, will return the metadata
-    async GetAPIMetadata(apiName) {
-        // get all API calls from local storage
-        if (this.APICalls.length === 0) {
-            const apiCalls = await AstroTable.GetAPIPayload(`${VedAstro.ApiDomain}/ListCalls`);
-            this.APICalls = apiCalls; // save to local storage
-        }
-
-        var foundCalls = AstroTable.FindAPICallByName(this.APICalls, apiName);
-
-        var selectedMethodInfo = foundCalls[0]?.MethodInfo;
-
-        return selectedMethodInfo;
-    }
-
-    async GenerateTable(userInputParams) {
-        //convert input param to URL format
-        //in URL format it's ready to use in final URL
-        var userInputURLParams = this.ConvertRawParamsToUrl(userInputParams);
-
-        //clear old data if any
-        $(`#${this.ElementID}`).empty();
-
-        //# HEADER
-        //show header with title, icon and edit button
-        if (this.ShowHeader) {
-            //random ID for edit button
-            this.EditButtonId = Math.floor(Math.random() * 1000000);
-
-            var htmlContent = `
-                    <h3 style="margin-bottom: -11px;">
-                        <iconify-icon class="me-2" icon="${this.HeaderIcon}" width="38" height="38"></iconify-icon>
-                        ${this.KeyColumn}
-                        <button id="${this.EditButtonId}" style="scale: 0.6;" class="ms-1 mb-1 btn btn-sm btn-outline-primary">
-                            <iconify-icon icon="majesticons:edit-pen-2-line" width="30" height="30"></iconify-icon>
-                        </button>
-                    </h3>
-                    <hr />`;
-
-            //inject into page
-            $(`#${this.ElementID}`).append(htmlContent);
-
-            //attach event handler to edit button
-            $(`#${this.EditButtonId}`).on("click", async () => {
-                await this.ShowEditTableOptions();
-            });
-        }
-
-        //# TABLE
-        //create empty table inside main holder
-        //table will be filled below
-        //NOTE: "table responsive" needed to make nicely scrollable in mobile
-        $(`#${this.ElementID}`).append(
-            `<div class="table-responsive">
-                <table id="${this.TableId}" class="table table-striped table-hover table-bordered text-nowrap w-auto" style=""></table>
-             </div>
-             `
-        );
-
-        //generate table from inputed data
-        await this.GenerateHTMLTableFromAPI(userInputURLParams);
-    }
-
-    ConvertRawParamsToUrl(userInputParams) {
-        //handle camel case to pascal case (for blazor only)
-        userInputParams =
-            CommonTools.CamelCaseKeysToPascalCase(userInputParams);
-
-        //extract from input
-        var timeUrlParam = userInputParams.TimeUrl;
-        var horaryNumber = userInputParams.HoraryNumber;
-        var rotateDegrees = userInputParams.RotateDegrees;
-
-        //SPECIAL CASE:
-        //store ayanamsa as setting will be injected later into final URL
-        this.Ayanamsa = userInputParams.Ayanamsa;
-
-        // load the needed data from API for each column based
-        var keyColumnParam = `${this.KeyColumn}Name/All/`;
-
-        //compile all user inputed params
-        //NOTE: name of property must match API C# code
-        var userInputParams = {
-            time: timeUrlParam,
-            [this.KeyColumn]: keyColumnParam,
-        };
-
-        //only add horary if user inputed (defaults to 0)
-        var horaryParam = `HoraryNumber/${horaryNumber}/`;
-        if (horaryNumber !== 0) {
-            userInputParams["HoraryNumber"] = horaryParam;
-        }
-
-        //only add rotate degrees if user inputed (defaults to 0)
-        var rotateParam = `RotateDegrees/${rotateDegrees}/`;
-        if (rotateDegrees !== 0) {
-            userInputParams["RotateDegrees"] = rotateParam;
-        }
-
-        return userInputParams;
-    }
-
-    async GenerateHTMLTableFromAPI(userInputURLParams) {
-        //extract endpoints that have been enabled
-        var endpoints = this.GetAllEnabledEndpoints();
-
-        //each API calculator listed is called (parallel)
-        var payloads = await Promise.all(
-            endpoints.map(async (endpoint) => {
-                var apiPayload = await AstroTable.GetPayLoad2(
-                    endpoint,
-                    userInputURLParams,
-                    this
-                );
-                return apiPayload;
-            })
-        );
-
-        // get underlying values
-        var combinedData = AstroTable.CombineRawAPICallResults(payloads);
-
-        //print message for debug
-        console.log(`Table Generated --> ${this.TableId}`);
-
-        //clean old data
-        AstroTable.ClearTableRows(this.TableId);
-
-        //set API names as column headers, will be converted later to nicer names
-        //note: first column name is same as preset key
-        let tableHeaders = Array.from(endpoints);
-        tableHeaders.unshift(this.KeyColumn);
-
-        // generate the HTML table on page
-        this.JsonToTable(combinedData, this.TableId, tableHeaders);
-
-        //TODO not working, does not detect sorting
-        //bring table to live with search & sorting if specified (SHORT CIRCUIT EVAL)
-        //this.EnableSorting && new DataTable(`#${this.TableId}`);
-    }
-
-    //given JSON version of table data will convert to HTML
-    JsonToTable(data, tableId, tableHeaders) {
-        // Get the table element by id
-        var table = document.getElementById(tableId);
-        // Create the table head
-        var thead = table.createTHead();
-        var headerRow = thead.insertRow();
-        // Create the header cells
-        for (var header of tableHeaders) {
-            //get nice column name set in options
-            var cleanColumnName = this.GetNiceColumnNameFromRawAPIName(header);
-
-            //place nice name into html
-            var th = document.createElement("th");
-            th.textContent = cleanColumnName;
-            headerRow.appendChild(th);
-        }
-        // Create the table body
-        var tbody = document.createElement("tbody");
-        table.appendChild(tbody);
-
-        // Create the body rows
-        for (var key in data) {
-            var row = tbody.insertRow();
-            var cell = document.createElement("td");
-            cell.textContent = key;
-            row.appendChild(cell);
-
-            //each item here is the data that goes into cell
-            for (var item of data[key]) {
-                cell = document.createElement("td");
-
-                //if the value inside column is complex type (not string)
-                //exp : Zodiac Sign/Planet Name in JSON format
-                if (typeof item === "object" && item !== null) {
-                    //SPECIAL handle to remove unwanted properties from JSON for special types
-                    AstroTable.RemoveProperty(item, "TotalDegrees"); //Zodiac Sign
-
-                    //place each value inside object into 1 string
-                    cell.textContent = AstroTable.FlattenObjectValues(item).join(" ");
-                } else {
-                    cell.textContent = item;
-                }
-
-                //add to main table
-                row.appendChild(cell);
-            }
-        }
-    }
-
-    //converts current instance of table settings to JSON string format
-    //used for storing on browser storage
-    ToJsonString() {
-        //place all settings nicely into 1 bag
-        var jsonObj = {
-            TableId: this.TableId,
-            KeyColumn: this.KeyColumn,
-            ColumnData: this.ColumnData,
-            EnableSorting: this.EnableSorting,
-        };
-
-        //convert to string before sending to caller
-        return JSON.stringify(jsonObj);
-    }
-
-    /*--------------------STATIC METHODS--------------------------------*/
-
-    static async GetPayLoad2(endpoint, userInputParams, instance) {
-        //given a API name, get the metadata of the API call
-        var selectedMethodInfo = await instance.GetAPIMetadata(endpoint);
-
-        //construct the base url
-        var finalUrl = `${VedAstro.ApiDomain}/Calculate/${endpoint}/`;
-
-        //if metadata not found, alert user
-        if (selectedMethodInfo === undefined) {
-            Swal.fire({
-                icon: "error",
-                title: "Invalid Column",
-                text: `API call ${endpoint} not found!`,
-                confirmButtonText: "OK",
-            });
-
-            //print error in console as well, because message box might be missed
-            console.error(`Invalid Column : API call ${endpoint} not found!`);
-        }
-
-        //only process if API call meta was found
-        else {
-            //go through each parameter and add to the final URL
-            for (var param of selectedMethodInfo.Parameters) {
-                //get param name declared in C# code
-                var paramName = param.Name;
-
-                //find param from user with same or similar name (intelligently finds the param)
-                //note: if not found return empty string
-                var paramUrl = AstroTable.FindParamMatch(paramName, userInputParams);
-
-                //add to back of final URL
-                finalUrl += paramUrl;
-            }
-
-            //note: Ayanamsa is added here as system param
-            var ayanamsaSysParam = `Ayanamsa/${instance.Ayanamsa}`;
-            finalUrl += ayanamsaSysParam;
-
-            //make the final API call in the perfect URL format
-            var apiPayload = await AstroTable.GetAPIPayload(finalUrl);
-            return apiPayload;
-        }
-    }
-
-    //function works by first checking if the property exists in the top level of the object.
-    //If it does, it deletes it. If it doesn't, it checks the second and third levels of the object.
-    //If the property is found at any of these levels, it is deleted.
-    static RemoveProperty(obj, propToRemove) {
-        // Check if the property exists in the top level of the object
-        if (obj.hasOwnProperty(propToRemove)) {
-            delete obj[propToRemove];
-        } else {
-            // If not, check the second and third levels
-            for (let prop in obj) {
-                if (typeof obj[prop] === "object") {
-                    if (obj[prop].hasOwnProperty(propToRemove)) {
-                        delete obj[prop][propToRemove];
-                    } else {
-                        for (let subProp in obj[prop]) {
-                            if (
-                                typeof obj[prop][subProp] === "object" &&
-                                obj[prop][subProp].hasOwnProperty(propToRemove)
-                            ) {
-                                delete obj[prop][subProp][propToRemove];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    //given a complex JSON object like PlanetName or ZodiacSign will flatten values to 1 string
-    static FlattenObjectValues(obj) {
-        var values = [];
-        for (var prop in obj) {
-            if (typeof obj[prop] === "object" && obj[prop] !== null) {
-                // If the property is an object, recurse
-                values.push(...AstroTable.FlattenObjectValues(obj[prop]));
-            } else {
-                // Otherwise, add the property's value to the array
-                values.push(obj[prop]);
-            }
-        }
-
-        //note : because used recursively can't use join with space here,
-        //caller has to implement it .join(' ')
-        return values;
-    }
-
-    static FindAPICallByName(items, apiCalcName) {
-        //gets only API calls that can be used in Table, removes rest
-        return items.filter((item) => item.MethodInfo.Name === apiCalcName);
-    }
-
-    //takes in many arrays and combines them into a single table like array
-    static CombineRawAPICallResults(inputArray) {
-        return inputArray.reduce((acc, curr) => {
-            if (curr !== undefined) {
-                let curr1 = curr[Object.keys(curr)[0]];
-                curr1?.forEach((obj) => {
-                    const key = Object.keys(obj)[0];
-                    if (!acc[key]) {
-                        acc[key] = [];
-                    }
-                    acc[key].push(obj[key]);
-                });
-            }
-            return acc;
-        }, {});
-    }
-
-    // generate Table Editor column options popup panel
-    async GenerateTableEditorHtml(columnData, keyColumnName) {
-        var formHtml = "";
-
-        for (
-            var columnNumber = 0;
-            columnNumber < columnData.length;
-            columnNumber++
-        ) {
-            formHtml += `
-                    <div class="input-group input-group-sm mb-3">
-                        <div class="input-group-text">
-                            <input class="form-check-input mt-0"  id="Enabled${columnNumber}" type="checkbox" value="" aria-label="Enable Column" ${columnData[columnNumber].Enabled ? "checked" : ""
-                }>
-                        </div>
-                        <input type="text" id="Name${columnNumber}" value="${columnData[columnNumber].Name
-                }" class="form-control" aria-label="Text input with checkbox">
-                        <span class="input-group-text">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 128 128"><path fill="#40c0e7" d="M108.58 64L62.47 97.81V76.72H19.42V51.49h43.04v-21.3L108.58 64z"/></svg>
-                        </span>
-                        <div class="w-50">
-                            <select id="SelecteAPI${columnNumber}Dropdown"  class="mt-1">
-                                <option value=""></option>
-                                ${await this.GetAPICallsListSelectOptionHTML(
-                    columnData[columnNumber].Api,
-                    keyColumnName,
-                    VedAstro.ApiDomain
-                )}
-                            </select>
-                        </div>
-                    </div>
-           `;
-        }
-
-        //default key column options in HTML
-        var defaultKeyColumnSel = `
-            <select id="KeyColumnInput" class="form-select">
-                <option value="Planet">Planet</option>
-                <option value="House">House</option>
-                <option value="ZodiacSign">ZodiacSign</option>
-            </select>
-        `;
-
-        //automatically select the right key based on input
-        // Convert the HTML string to jQuery object
-        var $defaultKeyColumnSel = $(defaultKeyColumnSel);
-
-        // Find the option with the value of keyColumn and set it as selected
-        $defaultKeyColumnSel
-            .find('option[value="' + keyColumnName + '"]')
-            .attr("selected", "selected");
-
-        // Convert the jQuery object back to HTML string
-        //saved as string to be injected later
-        var keyColumnSelector = $defaultKeyColumnSel.prop("outerHTML");
-
-        //add in header to label menu nicely
-        var outerHtml = `
-            <div class="mb-4 hstack gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#2196F3"/><path fill="#fff" d="M22 22h4v11h-4z"/><circle cx="24" cy="16.5" r="2.5" fill="#fff"/></svg>
-                <span style=" font-size: 15px;" >Each column is linked to an API call. Change <strong>Key Column</strong> for different API calls.</span>\r\n
-            </div>
-            <div class="hstack gap-3">
-                <div class="input-group w-50">
-                    <span class="input-group-text">
-                        <iconify-icon class="me-2" icon="carbon:virtual-column-key" width="25" height="25"></iconify-icon>
-                        Key Column
-                    </span>
-                    ${keyColumnSelector}
-                </div>
-                <div class="form-check form-switch" style="font-size: 15px;">
-                  <input class="form-check-input" type="checkbox" role="switch" id="TableSortingEnableSwitch">
-                  <label class="form-check-label" for="TableSortingEnableSwitch">Enable Sorting</label>
-                </div>
-                <button id="EditTableResetButton" type="button" class="btn btn-primary">
-                    <iconify-icon class="me-2" icon="material-symbols:device-reset-rounded" width="25" height="25"></iconify-icon>
-                    Reset
-                </button>
-            </div>
-            <hr />
-            <div class="d-flex justify-content-around" style=" font-weight: 800; ">
-                <div>Column Name</div>
-                <div>API</div>
-            </div>
-            ${formHtml}
-    `;
-
-        return outerHtml;
-    }
-
-    //get list of all API calls in HTML options element string
-    async GetAPICallsListSelectOptionHTML(selectValue, keyColumnName) {
-        // get raw API calls list from local storage or API
-        let apiCalls = this.APICalls;
-        if (apiCalls.length === 0) {
-            apiCalls = await AstroTable.GetAPIPayload(`${VedAstro.ApiDomain}/ListCalls`);
-            this.APICalls = apiCalls; // save to local storage
-        }
-
-        //filter out call that can NOT be used in columns (make User's live easier)
-        apiCalls = AstroTable.FilterOutIncompatibleAPICalls(apiCalls, keyColumnName);
-
-        let options = "";
-        $.each(apiCalls, function (i, item) {
-            //if called specified selected value, than select it
-            var isSelected = selectValue === item.MethodInfo.Name;
-            options += `<option value='${item.MethodInfo.Name}' title='${item.Description
-                }' ${isSelected ? "selected" : ""}>${item.MethodInfo.Name}</option>`;
-        });
-
-        return options;
-    }
-
-    //gets only API calls that can be used in Table, removes rest
-    static FilterOutIncompatibleAPICalls(items, keyColumnName) {
-        return items.filter((item) => {
-            const parameters = item.MethodInfo.Parameters;
-            return (
-                parameters.length >= 2 &&
-                //NOTE: here hack to link Key Column to API library
-                //make sure parameters to call API is supported
-                parameters[0].ParameterType ===
-                `VedAstro.Library.${keyColumnName}Name` &&
-                parameters[1].ParameterType === "VedAstro.Library.Time"
-            );
-        });
-    }
-
-    // Function to update the array based on the Swal form
-    static async UpdateDateColumns(dataColumns) {
-        for (var i = 0; i < dataColumns.length; i++) {
-            dataColumns[i].Api = $(`#SelecteAPI${i}Dropdown`).val();
-            dataColumns[i].Enabled = $("#Enabled" + i).is(":checked");
-            dataColumns[i].Name = $("#Name" + i).val();
-        }
-    }
-
-    //try find param from user with same or similar name (intelligently finds the param)
-    static FindParamMatch(paramName, userInputParams) {
-        //try find exact match
-        var foundParam = userInputParams[paramName];
-
-        //if no exact match, try find similar match
-        if (!foundParam) {
-            //key is name of the param set in JS code
-            for (let key in userInputParams) {
-                //check param name of C# method contains any of
-                //the JS defined param name (birthTime --> time)
-                var check1 = paramName.toLowerCase().includes(key.toLowerCase());
-                var check2 = key.toLowerCase().includes(paramName.toLowerCase());
-                if (check1 || check2) {
-                    //get the URL value out
-                    foundParam = userInputParams[key];
-                    break;
-                }
-            }
-        }
-
-        //if undefined, set as empty string (to avoid undefined in URL)
-        if (!foundParam) {
-            foundParam = "";
-        }
-        return foundParam;
-    }
-
-    //given a vedastro API url, will auto call via POST or GET
-    //and return only passed payloads as JSON
-    static async GetAPIPayload(url, payload = null) {
-        try {
-            // If a payload is provided, prepare options for a POST request
-            const options = payload
-                ? {
-                    method: "POST", // Specify the HTTP method as POST
-                    headers: { "Content-Type": "application/json" }, // Set the content type of the request to JSON
-                    body: JSON.stringify(payload), // Convert the payload to a JSON string and include it in the body of the request
-                }
-                : {}; // If no payload is provided, create an empty options object, which defaults to a GET request
-
-            // Send the request to the specified URL with the prepared options
-            const response = await fetch(url, options);
-
-            // If the response is not ok (status is not in the range 200-299), throw an error
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            // Parse the response body as JSON
-            const data = await response.json();
-
-            // If the 'Status' property of the parsed data is not 'Pass', throw an error
-            if (data.Status !== "Pass") {
-                throw new Error(data.Payload);
-            }
-
-            // If everything is ok, return the 'Payload' property of the parsed data
-            return data.Payload;
-        } catch (error) {
-            // If an error is caught, display an error message using Swal.fire
-            Swal.fire({
-                icon: "error",
-                title: "App Crash!",
-                text: error,
-                confirmButtonText: "OK",
-            });
-
-            //print error in console as well, because message box might be missed
-            console.error(`API CALL FAILED : ${url} >> ${error}`);
-        }
-    }
-
-    static ClearTableRows(tableId) {
-        let table = document.getElementById(tableId);
-        while (table?.rows?.length > 0) {
-            table?.deleteRow(0);
-        }
-    }
 }
 
 class AshtakvargaTable {
     constructor(rawSettings) {
         //correct if property names is camel case (for Blazor)
         var settings = CommonTools.CamelCaseKeysToPascalCase(rawSettings);
-
-        //if column data is not supplied use default
-        if (!settings.ColumnData) {
-            settings.ColumnData = AstroTable.DefaultColumns;
-        }
 
         //expand data inside settings input
         this.ElementID = settings.ElementID;
@@ -4405,12 +3817,19 @@ class AshtakvargaTable {
 
     async GenerateHTMLTableFromAPI(url, tableId) {
         //make the final API call in the perfect URL format
-        var apiPayload = await AstroTable.GetAPIPayload(url);
+        var apiPayload = await CommonTools.GetAPIPayload(url);
 
         //clean old data
-        AstroTable.ClearTableRows(tableId);
+        AshtakvargaTable.ClearTableRows(tableId);
 
         AshtakvargaTable.GenerateHTMLTableFromJson(apiPayload, tableId);
+    }
+
+    static ClearTableRows(tableId) {
+        let table = document.getElementById(tableId);
+        while (table?.rows?.length > 0) {
+            table?.deleteRow(0);
+        }
     }
 
     //code where Ashtakvarga in JSON format given by API is converted into nice HTML
@@ -5770,6 +5189,7 @@ class AlgorithmsSelector {
     }
 }
 
+//gives checkboxes to select all events from eventdatalist.xml via API
 class EventsSelector {
     // Class properties
     ElementID = "";
@@ -7615,8 +7035,22 @@ class PersonListViewer {
         // Assign the provided elementId to the ElementID property
         this.ElementID = elementId;
 
-        // Call the method to initialize the list html
+        // Save a reference to this instance
+        this.saveInstanceReference();
+
+        // Initialize the main body
         this.initializeMainBody();
+    }
+
+    // Save a reference to this instance for global access
+    saveInstanceReference() {
+        if (!window.vedastro) {
+            window.vedastro = {};
+        }
+        if (!window.vedastro.PersonListViewerInstances) {
+            window.vedastro.PersonListViewerInstances = {};
+        }
+        window.vedastro.PersonListViewerInstances[this.ElementID] = this;
     }
 
     // Method to initialize the main body 
@@ -7659,25 +7093,10 @@ class PersonListViewer {
                         <div title="${person.BirthTime.Location.Name}">🌍 ${CommonTools.TruncateText(person.BirthTime.Location.Name, 43)}, ${person.BirthTime.Location.Latitude}, ${person.BirthTime.Location.Longitude}</div>
                     </td>
                     <td>
-                        <div class="dropdown ">
-                            <button style=" height:37.1px; width: fit-content;" class="btn-sm iconOnlyButton dropdown-toggle btn-outline-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" _bl_134="">
-                                <iconify-icon icon="bx:edit" width="25" height="25"></iconify-icon>
-                            </button>
-                            <ul style="cursor: pointer; width: 100%;" class="dropdown-menu"><li><a class="dropdown-item" href="/Contact">Contact Us</a></li>
-                                <li><a class="dropdown-item" href="/About">About</a></li>
-                                <li><a class="dropdown-item" href="https://www.youtube.com/@vedastro/videos" target="_blank">Video Guides</a></li>
-                                <li><a class="dropdown-item" href="/JoinOurFamily">Join Us</a></li>
-                                <li><a class="dropdown-item" href="Calculator/">Calculators</a></li>
-                                <li><a class="dropdown-item" href="Account/Person/List">Person List</a></li>
-                                <li><a class="dropdown-item" href="/TrainAIAstrologer">Train AI</a></li>
-                                <li><a class="dropdown-item" href="/Remedy">Remedy</a></li>
-                                <li><a class="dropdown-item" href="/Download">Download</a></li>
-                                <li><a class="dropdown-item" href="https://vedastroapi.azurewebsites.net/api">API Live Status</a></li>
-                                <li><a class="dropdown-item" href="TableGenerator">Table Generator</a></li>
-                                <li><a class="dropdown-item" href="/BodyTypes">Body Types</a></li>
-                                <li><a class="dropdown-item" href="Account/Person/Import">Import Person</a></li>
-                            </ul>
-                        </div>
+                        <button style=" height:37.1px; width: fit-content;" class="btn-sm btn-outline-primary btn" type="button"
+                            onclick="window.vedastro.PersonListViewerInstances['${this.ElementID}'].onClickEdit('${person.PersonId}')">
+                            <iconify-icon icon="uil:edit" width="25" height="25"></iconify-icon>
+                        </button>
                     </td>
                 </tr>
             `;
@@ -7712,6 +7131,29 @@ class PersonListViewer {
         `;
     }
 
+    // Method to handle the edit button click
+    onClickEdit(personId) {
+        // Find the person data based on the person ID
+        const person = this.personList.find(p => p.PersonId === personId);
+        if (!person) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Person not found',
+                text: 'Could not find person data.'
+            });
+            return;
+        }
+
+        // Generate a unique storage key, for example the person ID
+        const selectedPersonStorageKey = `SelectedPerson-${person.PersonId}`;
+
+        // Save the person data into session storage (so that unique across tabs)
+        sessionStorage.setItem(selectedPersonStorageKey, JSON.stringify(person));
+
+        // Navigate to EditPerson.html with the query parameter using selectedPersonStorageKey
+        window.location.href = `./EditPerson.html?SelectedPersonStorageKey=${selectedPersonStorageKey}`;
+    }
+
     // Method to filter the table
     filterTable() {
         const searchInput = $('#person-search').val().toLowerCase();
@@ -7728,3 +7170,556 @@ class PersonListViewer {
     }
 }
 
+/**
+ * Represents an API method viewer component.
+ * This class generates the HTML for selecting and invoking API methods
+ */
+
+class ApiMethodViewer {
+    // Class properties
+    ElementID = "";
+    apiMethods = []; // To store the list of API methods
+    selectedMethodData = null; // The currently selected API method data
+    timeInputInstances = {}; // To store instances of TimeLocationInput
+    timeLocationInputParams = []; // To store IDs and names of time parameters
+    SearchInputElementClass = "searchInputElementClass"; // Class for the search input
+    ApiDataStorageKey = "AllApiMethods"; // Key for local storage
+    ServerAddressStorageKey = "ServerAddress"; // Key for storing server address in localStorage
+
+    // Constructor to initialize the object
+    constructor(elementId) {
+        // Assign the provided elementId to the ElementID property
+        this.ElementID = elementId;
+
+        // Save a reference to this instance
+        this.saveInstanceReference();
+
+        // Initialize the main body
+        this.initializeMainBody();
+    }
+
+    // Save a reference to this instance for global access
+    saveInstanceReference() {
+        if (!window.vedastro) {
+            window.vedastro = {};
+        }
+        if (!window.vedastro.ApiMethodViewerInstances) {
+            window.vedastro.ApiMethodViewerInstances = {};
+        }
+        window.vedastro.ApiMethodViewerInstances[this.ElementID] = this;
+    }
+
+    // Method to initialize the main body
+    async initializeMainBody() {
+        // Empty the content of the element with the given ID
+        $(`#${this.ElementID}`).empty();
+
+        // Fetch the API methods
+        await this.fetchApiMethods();
+
+        // Generate the HTML and inject it into the element
+        $(`#${this.ElementID}`).html(this.generateHtmlBody());
+
+        // Initialize help text icons
+        HelpTextIcon.InitAllIn(`#${this.ElementID}`);
+
+        // Bind event listener to the "Generate" button
+        const generateButton = document.getElementById(`${this.ElementID}_generateButton`);
+        generateButton.addEventListener('click', () => this.onGenerateButtonClick());
+    }
+
+    // Method to fetch API methods from the server or local storage
+    async fetchApiMethods() {
+        // Check if data is in local storage
+        const storedData = localStorage.getItem(this.ApiDataStorageKey);
+        if (storedData) {
+            try {
+                const data = JSON.parse(storedData);
+
+                if (data.Status === "Pass") {
+                    console.log("Loaded API methods from local storage");
+                    this.apiMethods = data.Payload;
+                    return; // Return early since data is loaded from local storage
+                } else {
+                    // If data in local storage is invalid, remove it
+                    localStorage.removeItem(this.ApiDataStorageKey);
+                }
+            } catch (error) {
+                console.error("Error parsing stored data:", error);
+                // If there's an error parsing, remove the corrupted data
+                localStorage.removeItem(this.ApiDataStorageKey);
+            }
+        }
+
+        // If data not in local storage, fetch from server
+        try {
+            const response = await fetch(`${VedAstro.ApiDomain}/ListCalls`);
+            const data = await response.json();
+
+            if (data.Status === "Pass") {
+                this.apiMethods = data.Payload;
+                // Cache data in local storage
+                localStorage.setItem(this.ApiDataStorageKey, JSON.stringify(data));
+            } else {
+                console.error('Failed to retrieve API methods:', data.Payload);
+            }
+        } catch (error) {
+            console.error('Error fetching API methods:', error);
+        }
+    }
+
+    // Method to generate the HTML
+    generateHtmlBody() {
+        // Get the stored server address
+        const serverAddress = this.getStoredServerAddress();
+
+        // Generate the method list HTML
+        let methodListHTML = this.generateMethodListHtml();
+
+        let html = `
+        <div class="container mt-3" style="width:412px;">
+            <div class="input-group">
+                <span class="input-group-text gap-2 py-1" style="width: 136px;"><iconify-icon icon="lucide:server-crash" width="35" height="35"></iconify-icon>Server</span>
+                <input id="ServerAddressInput" type="text" class="form-control" value="${serverAddress}" placeholder="http://localhost:7071" style="font-weight: 600; font-size: 16px;">
+            </div>
+            <div class="mt-3">
+                <div class="fw-bold hstack gap-2 d-flex">
+                    <iconify-icon icon="flat-color-icons:calculator" width="38" height="38"></iconify-icon>
+                    <h5 class="mt-2 me-auto">Calculator </h5>
+                </div>
+                <hr class="mt-0 mb-2">
+            </div>
+            <div class="mb-3">
+                <div class="hstack">
+                    <div class="btn-group w-100" style="min-width:231px !important;">
+                        <button onclick="window.vedastro.ApiMethodViewerInstances['${this.ElementID}'].onClickDropDown(event)" type="button" class="btn dropdown-toggle btn-primary text-centre" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="selected-method-name" style="cursor: pointer;white-space: nowrap; display: inline-table;" >Select Method</div>
+                        </button>
+                        <ul class="dropdown-menu w-100 ps-2 pe-3" style="height: 412.5px; overflow: clip scroll;">
+                            <!-- SEARCH INPUT -->
+                            <div class="hstack gap-2">
+                                <input onkeyup="window.vedastro.ApiMethodViewerInstances['${this.ElementID}'].onKeyUpSearchBar(event)" type="text" class="${this.SearchInputElementClass} form-control ms-0 mb-2 ps-3" placeholder="Search...">
+                                <div class="mb-2" style="cursor: pointer;">
+                                    <iconify-icon icon="mingcute:list-search-fill" width="25" height="25"></iconify-icon>
+                                </div>
+                            </div>
+                            <!-- METHOD LIST -->
+                            ${methodListHTML}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method Description -->
+            <div id="${this.ElementID}_methodDescription" class="mt-2"></div>
+
+            <div class="">
+                <div class="fw-bold hstack gap-2 d-flex">
+                    <iconify-icon icon="flat-color-icons:multiple-inputs" width="38" height="38"></iconify-icon>
+                    <h5 class="mt-2 me-auto">Input Parameters </h5>
+                </div>
+                <hr class="mt-0 mb-2">
+            </div>
+
+            <!-- Parameters will be loaded here -->
+            <div id="${this.ElementID}_parameters"></div>
+
+            <!-- Generate button -->
+            <button id="${this.ElementID}_generateButton" style=" place-content: center !important;font-weight: 500 !important;font-size: 17px !important; height:37.1px; width: fit-content;" class="btn-sm w-100 hstack gap-2 btn-success btn " disabled>
+                <iconify-icon icon="flat-color-icons:flash-auto" width="25" height="25"></iconify-icon>
+                Generate
+            </button>
+
+            <!-- URL output -->
+            <div id="${this.ElementID}_output" class="mt-3">
+            </div>
+        </div>
+        `;
+
+        return html;
+    }
+
+    // Method to get the stored server address or default
+    getStoredServerAddress() {
+        const storedAddress = localStorage.getItem(this.ServerAddressStorageKey);
+        if (storedAddress) {
+            return storedAddress;
+        }
+        return 'http://localhost:7071';
+    }
+
+    // Method to generate the method list HTML
+    generateMethodListHtml() {
+        const html = this.apiMethods.map((method) => {
+            const formattedName = CommonTools.CamelPascalCaseToSpaced(method.MethodInfo.Name);
+            const description = method.Description || '';
+            return `<li onClick="window.vedastro.ApiMethodViewerInstances['${this.ElementID}'].onClickMethodName('${method.MethodInfo.Name}')" class="dropdown-item method-item" style="cursor: pointer;" data-method-name="${method.MethodInfo.Name.toLowerCase()}" data-formatted-name="${formattedName.toLowerCase()}" data-description="${description.toLowerCase()}">${formattedName}</li>`;
+        }).join("");
+
+        return html;
+    }
+
+    // Handle click on the dropdown button
+    onClickDropDown(event) {
+        // Set focus to the search text box for instant input
+        // Note: Only on desktop, skip for mobile, because keyboard takes screen space
+        if (!CommonTools.IsMobile()) {
+            $(`#${this.ElementID}`).find(`.${this.SearchInputElementClass}`).focus();
+        }
+    }
+
+    // Handle keyup event on the search input field
+    onKeyUpSearchBar(event) {
+        // Ignore certain keys to prevent unnecessary filtering
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "Enter", "Tab", "Escape"].includes(event.code)) {
+            return;
+        }
+
+        // Get the search text from the input field
+        const searchText = event.target.value.toLowerCase();
+
+        // Filter method items based on the search text
+        var allMethodDropItems = $(`#${this.ElementID}`).find('.dropdown-menu li.method-item');
+        allMethodDropItems.each(function () {
+            const methodName = $(this).data('method-name'); // method name in lowercase
+            const formattedName = $(this).data('formatted-name'); // formatted name in lowercase
+            const description = $(this).data('description'); // description in lowercase
+
+            if (methodName.includes(searchText) || formattedName.includes(searchText) || description.includes(searchText)) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    }
+
+    // Handle click on a method name in the dropdown
+    async onClickMethodName(methodName) {
+        // Find the selected method data
+        this.selectedMethodData = this.apiMethods.find(method => method.MethodInfo.Name === methodName);
+
+        const formattedName = CommonTools.CamelPascalCaseToSpaced(methodName);
+
+        // Update the selected method name in the button
+        const buttonTextHolder = $(`#${this.ElementID}`).find('.selected-method-name');
+        buttonTextHolder.html(formattedName);
+
+        // Enable the Generate button
+        const generateButton = document.getElementById(`${this.ElementID}_generateButton`);
+        generateButton.disabled = false;
+
+        // Update the method description
+        const methodDescriptionDiv = document.getElementById(`${this.ElementID}_methodDescription`);
+        const description = this.selectedMethodData.Description || 'No description available.';
+        methodDescriptionDiv.innerHTML = `<p><iconify-icon class="me-1" style="margin-bottom: -7px;" icon="icon-park:info" width="25" height="25"></iconify-icon>${description}</p>`;
+
+        // Generate the parameter inputs
+        const parametersDiv = document.getElementById(`${this.ElementID}_parameters`);
+        parametersDiv.innerHTML = this.generateParametersHtml();
+
+        // Initialize help text icons in the parameters
+        HelpTextIcon.InitAllIn(`#${this.ElementID}_parameters`);
+
+        // Initialize TimeLocationInput instances
+        this.timeInputInstances = {}; // reset the dictionary
+        this.timeLocationInputParams.forEach(item => {
+            const timeLocationInstance = new TimeLocationInput(item.id);
+            // If default value exists, set it
+            if (item.defaultValue) {
+                // Assuming item.defaultValue is in a suitable format for setInputDateTime()
+                timeLocationInstance.setInputDateTime(item.defaultValue);
+            }
+            // Save the instance in the timeInputInstances dictionary with paramName as key
+            this.timeInputInstances[item.paramName] = timeLocationInstance;
+        });
+    }
+
+    // Method to generate the HTML for parameters
+    generateParametersHtml() {
+        const method = this.selectedMethodData;
+        const methodInfo = method.MethodInfo;
+
+        // Storage for TimeInput IDs and names
+        const timeLocationInputParams = [];
+
+        let html = '';
+
+        // For each parameter
+        methodInfo.Parameters.forEach(param => {
+            const paramName = param.Name;
+            const formatedParamName = CommonTools.CamelPascalCaseToSpaced(param.Name);
+            const paramDescription = param.Description;
+            const paramType = param.ParameterType;
+            const defaultValue = param.DefaultValue || '';
+
+            let inputHtml = '';
+
+            // Depending on the paramType, create suitable input
+            if (paramType === 'VedAstro.Library.Time') {
+                // For Time parameters, we can create a TimeLocationInput component
+                // Generate unique IDs for the input elements
+                const timeInputId = `${this.ElementID}_timeInput_${paramName}`;
+
+                inputHtml = `
+                <div class="mb-3">
+                    <label class="form-label hstack gap-2">
+                        ${formatedParamName}
+                        <div class="help-text-icon">
+                            ${paramDescription || 'No description'}
+                        </div>
+                    </label>
+                    <div id="${timeInputId}"></div>
+                </div>
+                `;
+
+                // Store the ID, paramName, and defaultValue for later initialization
+                timeLocationInputParams.push({ id: timeInputId, paramName: paramName, defaultValue });
+
+            } else if (paramType === 'VedAstro.Library.HouseName') {
+                // For HouseName parameters, create a dropdown
+                const inputId = `${this.ElementID}_input_${paramName}`;
+
+                // Generate options: All, House1 to House12
+                let options = '<option value="All">All</option>';
+                for (let i = 1; i <= 12; i++) {
+                    const value = `House${i}`;
+                    const display = `House ${i}`;
+                    options += `<option value="${value}">${display}</option>`;
+                }
+
+                inputHtml = `
+                <div class="mb-3">
+                    <label class="form-label hstack gap-2">
+                        ${formatedParamName}
+                        <div class="help-text-icon">
+                            ${paramDescription || 'No description'}
+                        </div>
+                    </label>
+                    <select class="form-control" id="${inputId}" name="${paramName}">
+                        ${options}
+                    </select>
+                </div>
+                `;
+
+            } else if (paramType === 'VedAstro.Library.PlanetName') {
+                // For PlanetName parameters, create a dropdown
+                const inputId = `${this.ElementID}_input_${paramName}`;
+
+                // Generate options: All, Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, Ketu
+                const planets = ['All', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
+                const options = planets.map(planet => `<option value="${planet}">${planet}</option>`).join('');
+
+                inputHtml = `
+                <div class="mb-3">
+                    <label class="form-label hstack gap-2">
+                        ${formatedParamName}
+                        <div class="help-text-icon">
+                            ${paramDescription || 'No description'}
+                        </div>
+                    </label>
+                    <select class="form-control" id="${inputId}" name="${paramName}">
+                        ${options}
+                    </select>
+                </div>
+                `;
+            } else if (paramType === 'System.Int32' || paramType === 'System.Double') {
+                // For integer or double parameters, create number input
+                const inputId = `${this.ElementID}_input_${paramName}`;
+                inputHtml = `
+                <div class="mb-3">
+                    <label class="form-label hstack gap-2">
+                        ${formatedParamName}
+                        <div class="help-text-icon">
+                            ${paramDescription || 'No description'}
+                        </div>
+                    </label>
+                    <input type="number" class="form-control" id="${inputId}" name="${paramName}" value="${defaultValue}">
+                </div>
+                `;
+            } else {
+                // For other types, use text input
+                const inputId = `${this.ElementID}_input_${paramName}`;
+                inputHtml = `
+                <div class="mb-3">
+                    <label class="form-label hstack gap-2">
+                        ${formatedParamName}
+                        <div class="help-text-icon">
+                            ${paramDescription || 'No description'}
+                        </div>
+                    </label>
+                    <input type="text" class="form-control" id="${inputId}" name="${paramName}" value="${defaultValue}">
+                </div>
+                `;
+            }
+
+            html += inputHtml;
+        });
+
+        // Store the timeInputParams array for later use
+        this.timeLocationInputParams = timeLocationInputParams;
+
+        return html;
+    }
+
+    // Method to handle the "Generate" button click
+    async onGenerateButtonClick() {
+        // Save the current server address to localStorage
+        const serverAddress = this.getServerAddress();
+        localStorage.setItem(this.ServerAddressStorageKey, serverAddress);
+
+        const method = this.selectedMethodData;
+        const methodInfo = method.MethodInfo;
+
+        let url = `${serverAddress}/api/Calculate/${methodInfo.Name}/`;
+
+        const params = methodInfo.Parameters;
+
+        for (let param of params) {
+            const paramName = param.Name;
+            const paramType = param.ParameterType;
+
+            let paramValue = null;
+
+            if (paramType === 'VedAstro.Library.Time') {
+                const timeInputInstance = this.timeInputInstances[paramName];
+                if (!timeInputInstance.isValid()) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: `Please fill in the <strong>"${CommonTools.CamelPascalCaseToSpaced(paramName)}"</strong> field correctly.`
+                    });
+                    return;
+                }
+                // Get the time object
+                const timeData = await timeInputInstance.getTimeJson(); // returns object with StdTime and Location
+
+                const stdTime = timeData.StdTime; // "13:54 25/10/1992 +08:00"
+
+                // Build the URL segment for the Time parameter
+                const [timePart, datePart, tzPart] = stdTime.split(' ');
+                const [day, month, year] = datePart.split('/');
+                const locationName = timeData.Location.Name;
+                const timeUrlSegment = `Location/${locationName}/Time/${timePart}/${day}/${month}/${year}/${tzPart}/`;
+
+                url += timeUrlSegment;
+            } else if (paramType === 'VedAstro.Library.HouseName' || paramType === 'VedAstro.Library.PlanetName') {
+                // Handle both HouseName and PlanetName parameters
+                const selectElement = document.getElementById(`${this.ElementID}_input_${paramName}`);
+                paramValue = selectElement.value;
+                if (paramValue === "") {
+                    Swal.fire({
+                        icon: 'error',
+                        title: `Please select a value for <strong>"${CommonTools.CamelPascalCaseToSpaced(paramName)}"</strong>.`
+                    });
+                    return;
+                }
+                // Append to URL
+                url += `${paramName}/${encodeURIComponent(paramValue)}/`;
+            } else if (paramType === 'System.Int32' || paramType === 'System.Double') {
+                const inputElement = document.getElementById(`${this.ElementID}_input_${paramName}`);
+                paramValue = inputElement.value;
+                if (paramValue === "") {
+                    Swal.fire({
+                        icon: 'error',
+                        title: `Please fill in the <strong>"${CommonTools.CamelPascalCaseToSpaced(paramName)}"</strong> field.`
+                    });
+                    return;
+                }
+                // For int parameters, we can append directly
+                url += `${paramValue}/`;
+            } else {
+                // For other types, get the value from input field
+                const inputElement = document.getElementById(`${this.ElementID}_input_${paramName}`);
+                paramValue = inputElement.value;
+                if (paramValue === "") {
+                    Swal.fire({
+                        icon: 'error',
+                        title: `Please fill in the <strong>"${CommonTools.CamelPascalCaseToSpaced(paramName)}"</strong> field.`
+                    });
+                    return;
+                }
+                // Append to URL
+                url += `${paramName}/${encodeURIComponent(paramValue)}/`;
+            }
+        }
+
+        // Remove any double slashes
+        url = url.replace(/([^:]\/)\/+/g, "$1");
+
+        // Output the generated URL
+        const outputDiv = document.getElementById(`${this.ElementID}_output`);
+        outputDiv.innerHTML = `
+
+        <div id="ParamOutputOptionsPanel" class="vstack gap-3">
+            <!--ARROW DOWN ICON-->
+            <div class="" style="text-align: center;">
+                <iconify-icon icon="flat-color-icons:down" width="80" height="80"></iconify-icon>
+            </div>
+
+            <!--URL OUT-->
+            <div class="vstack gap-1" style="margin-top: -32px;">
+                <span style="font-size: 14px; color: #8f8f8f;">URL</span>
+                <kbd id="UrlDisplayOut" style="padding: 12px; font-size: 18px; overflow-wrap: break-word; line-height: 33px;">${url}</kbd>
+            </div>
+
+            <!--BUTTON ROW-->
+            <div class="d-flex justify-content-between">
+                <button id="${this.ElementID}_viewSourceCodeButton" style="height:37.1px; width: fit-content;" class="btn-sm hstack gap-2 btn-primary btn">
+                    <iconify-icon icon="streamline:programming-browser-code-2-code-browser-tags-angle-programming-bracket" width="25" height="25"></iconify-icon>
+                    View Code
+                </button>
+                <button id="${this.ElementID}_copyUrlButton" style="height:37.1px; width: fit-content;" class="btn-sm hstack gap-2 btn-primary btn">
+                    <iconify-icon icon="carbon:link" width="25" height="25"></iconify-icon>
+                    Copy URL
+                </button>
+                <button id="${this.ElementID}_callApiButton" style="height:37.1px; width: fit-content;" class="btn-sm hstack gap-2 btn-success btn">
+                    <iconify-icon icon="ph:phone-call-light" width="25" height="25"></iconify-icon>
+                    Call API
+                </button>
+            </div>
+        </div>
+            `;
+
+        // Add event listeners to the new buttons
+        // Call API button
+        document.getElementById(`${this.ElementID}_callApiButton`).addEventListener('click', () => this.callApi(url));
+
+        // Copy URL button
+        document.getElementById(`${this.ElementID}_copyUrlButton`).addEventListener('click', () => {
+            navigator.clipboard.writeText(url);
+            Swal.fire({
+                icon: 'success',
+                title: 'URL copied to clipboard'
+            });
+        });
+
+        // View Source Code button
+        document.getElementById(`${this.ElementID}_viewSourceCodeButton`).addEventListener('click', () => this.onClickViewSourceCode());
+    }
+
+    // Method to call the API and open the URL in a new tab
+    async callApi(url) {
+        window.open(url, '_blank');
+    }
+
+    // Method to handle the "View Source Code" button click
+    onClickViewSourceCode() {
+        const metadata = this.selectedMethodData;
+
+        const lineNumber = metadata.LineNumber;
+
+        // Construct the GitHub link
+        const searchLink = `https://github.com/VedAstro/VedAstro/blob/master/Library/Logic/Calculate/Calculate.cs#L${lineNumber}`;
+
+        // Open link in new tab
+        window.open(searchLink, '_blank');
+    }
+
+    // Method to get the server address from input or default
+    getServerAddress() {
+        let serverAddress = document.getElementById('ServerAddressInput').value;
+        if (!serverAddress) {
+            serverAddress = 'http://localhost:7071';
+        }
+        return serverAddress;
+    }
+}

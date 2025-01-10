@@ -9,6 +9,7 @@
 
 [![Ko-fi](https://img.shields.io/static/v1?style=for-the-badge&message=Ko-fi&color=FF5E5B&logo=Ko-fi&logoColor=FFFFFF&label=)](https://ko-fi.com/vedastro)
 [![Patreon](https://img.shields.io/static/v1?style=for-the-badge&message=Patreon&color=FF424D&logo=Patreon&logoColor=FFFFFF&label=)](https://www.patreon.com/vedastro)
+[![Card](https://img.shields.io/static/v1?style=for-the-badge&message=Card&color=blue&logo=PayPal&logoColor=FFFFFF&label=)](https://buy.stripe.com/7sI15E8rZepVbio289)
 [![Slack](https://img.shields.io/static/v1?style=for-the-badge&message=Slack&color=4A154B&logo=Slack&logoColor=FFFFFF&label=)](https://join.slack.com/t/vedastro/shared_invite/zt-1u7pdqjky-hrJZ7e3_vM2dZOmVY8FeHA)
 [![Facebook](https://img.shields.io/badge/Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white)](https://www.facebook.com/vedastro.org)
 [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/_VedAstro)
@@ -26,16 +27,14 @@
 
 # 🙏 How VedAstro can help you...
 
-- [Website](https://vedastro.org/Docs/QuickGuide) --> easy & fast astrology data for **normal users**
-- [Chat API](https://vedastro.org/ChatAPI) --> world's 1st open source **Vedic AI Chat** bot
-- [Open API](https://vedastro.org/APIBuilder) --> free astrology data for your app or website with a simple `HTTP GET`
+- [Website](https://vedastro.org) --> easy & fast astrology data for **normal users**
 - [JavaScript SDK](https://github.com/VedAstro/VedAstro/tree/master/Website/wwwroot/Demo/JavaScript) --> easy to use JS library to simplify API access and use
-- [Swiss Ephemeris API](https://vedastro.org/APIBuilder) --> free advanced astronomy data from NASA's JPL Ephemeris
 - [Learn Astro Computation](https://github.com/VedAstro/VedAstro/tree/master/Library/Logic/Calculate) --> learn exact math & logic used in astrology via **`Free Open Source`** code
-- [ML Table Generator](https://vedastro.org/TableGenerator) --> easily generate large astronomical tables for use in ML/AI Model training and Data Science
-- [Match Finder](https://vedastro.org/Match/Finder) --> find your astrologically perfect match in our global database
-- [Life Predictor](https://vedastro.org/LifePredictor) --> accurate algorithmic prediction of a human life's past and future
+- [Life Predictor](https://vedastro.org/LifePredictor.html) --> accurate algorithmic prediction of a human life's past and future
 - [Build On Top](https://github.com/VedAstro/VedAstro/tree/master/Library/Logic/Calculate) --> import VedAstro code directly into your existing projects
+- [15000 Famous People DOB](https://huggingface.co/datasets/vedastro-org/15000-Famous-People-Birth-Date-Location) --> Accurate birth dataset for Machine Learning & AI
+- [15000 Famous People Marriage Info](https://huggingface.co/datasets/vedastro-org/15000-Famous-People-Marriage-Divorce-Info) --> Accurate marriage/divorce dataset for Machine Learning & AI
+
 
 [![.NET](https://img.shields.io/static/v1?style=for-the-badge&message=.NET&color=512BD4&logo=.NET&logoColor=FFFFFF&label=)](https://www.nuget.org/packages/VedAstro.Library) [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://pypi.org/project/VedAstro/)  [![Docker](https://img.shields.io/static/v1?style=for-the-badge&message=Docker&color=2496ED&logo=Docker&logoColor=FFFFFF&label=)](https://hub.docker.com/r/vedastro/api)
 
@@ -62,12 +61,12 @@ In the universe vast, it finds its own way,<br>
 Your work shines with brilliance, come what may.<br>
 
 # 🎯 Perfect Predictions
-[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-steve.jpg)](https://vedastro.org/LifePredictor)   
-[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-monroe.jpg)](https://vedastro.org/LifePredictor)   
-[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-hitler.jpg)](https://vedastro.org/LifePredictor)   
-[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-elon.jpg)](https://vedastro.org/LifePredictor)   
-[![MatchChecker](https://vedastro.org/images/marriage-prediction-perfect-example.png)](https://vedastro.org/Match)   
-[![SkyChartGIF](https://vedastro.org/images/SkyChart/release-mk3.gif)](https://vedastro.org/Horoscope)   
+[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-steve.jpg)](https://vedastro.org/LifePredictor.html)   
+[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-monroe.jpg)](https://vedastro.org/LifePredictor.html)   
+[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-hitler.jpg)](https://vedastro.org/LifePredictor.html)   
+[![LifePredictor](https://vedastro.org/images/proof/life-chart-proof-elon.jpg)](https://vedastro.org/LifePredictor.html)   
+[![MatchChecker](https://vedastro.org/images/marriage-prediction-perfect-example.png)](https://vedastro.org/MatchChecker.html)   
+[![SkyChartGIF](https://vedastro.org/images/SkyChart/release-mk3.gif)](https://vedastro.org/Horoscope.html)   
 
 
 # 📊 +200 Astro API Calls
@@ -169,7 +168,7 @@ Anybody who has studied Vedic Astrology knows well how accurate it can be.
 But also how complex it can get to make accurate predictions.
 It takes **decades of experience** to be able make accurate prediction.
 As such this knowledge only reaches a limited people.
-This project is an effort to change that. [Read More](https://vedastro.org/About)
+This project is an effort to change that. [Read More](https://vedastro.org/About.html)
 
 # 🎂 9 Years Old 
 The first line of code for this project was written in **late 2014** at **Itä-Pasila**.
@@ -179,7 +178,7 @@ With continued support from users, this project has steadily grown to what it is
 # 📚 Credits &amp; Reference 
 ![credits](https://vedastro.org/images/bv-raman-rao.png)
 
-Thanks to [B.V. Raman](https://en.wikipedia.org/wiki/B._V._Raman) and his grandfather B. Suryanarain Rao for pioneering easy to read astrology books. Credit also goes to [St. Jean-Baptiste de La Salle](https://en.wikipedia.org/wiki/Jean-Baptiste_de_La_Salle) for proving the **efficacy of free and open work** for the benefit of all men...[Read More](https://vedastro.org/About).
+Thanks to [B.V. Raman](https://en.wikipedia.org/wiki/B._V._Raman) and his grandfather B. Suryanarain Rao for pioneering easy to read astrology books. Credit also goes to [St. Jean-Baptiste de La Salle](https://en.wikipedia.org/wiki/Jean-Baptiste_de_La_Salle) for proving the **efficacy of free and open work** for the benefit of all men...[Read More](https://vedastro.org/About.html).
 
 
 # 💌 Support
@@ -232,7 +231,7 @@ Now it's coded in machines unseen.<br>
 The human touch, that once gave knowledge birth,<br>
 Replaced by algorithms, shaping future's girth.<br>
 
-# 🛖 Philosophy
+<!-- # 🛖 Philosophy
 Philosophy is equivalent to the **scaffolding** used when constructing a building.
 You can build without **scaffolding** it is called a **mud hut** not a building.
 Thus philosophy is essential to build a large & complex code structure like **VedAstro**.
@@ -242,18 +241,20 @@ This is a project born of joy, kept alive by it and as such do not touch the cod
 your heart is filled with the joy of building beauty with electrons and your fingers can't keep up.
 
 Then you know your code is right, and **has a place for it in this universe**.
-
+-->
 
 # 🙏 Special Thanks
 <img src="https://pics.paypal.com/00/p/ZjU4ZjZiMjEtNDE0Ny00MGExLTg2ZTMtNzkxOTQ1MTI4Mzc0/image_34.PNG" width="100"/>
 
-**Leslie Choi** : Sponsored & believed in the project even when work was only half done.
+**Leslie Choi** : Believed in the project even when work was only half done.
 
+<img src="https://play-lh.googleusercontent.com/Rya_zHj8gLRk3uenRehcLbfhSj-fushukfQH-JbtO2-hbJTRyr43F42Z9CrypGMacyY=w240-h480-rw" width="100"/>
+
+**[Swarn Siddhi](https://swarnsiddhi.com/)** : The makers of this awesome app keep this VedAstro project alive 
 
 <img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" width="100"/>
 
 **JetBrains** : Gave free "ReSharper License" that made coding life easier.
-
 
 # ❤️ Social
 Just **Like** & **Share** our social pages and it'll be a **big** help already!
@@ -263,10 +264,11 @@ Just **Like** & **Share** our social pages and it'll be a **big** help already!
 [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/_VedAstro)
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@vedastro)
 
-
+<!--
 # 👪 Join our family
-If you want to do more than just click "Like" & "Share", then [join us.](https://vedastro.org/JoinOurFamily)  
-We're always looking for somebody to **[improve code.](https://vedastro.org/JoinOurFamily)** or **[help with funding](https://vedastro.org/Donate)**.
+If you want to do more than just click "Like" & "Share", then [join us.](https://vedastro.org/JoinOurFamily.html)  
+We're always looking for somebody to **[improve code.](https://vedastro.org/JoinOurFamily.html)** or **[help with funding](https://vedastro.org/Donate.html)**.
+-->
 
 # 🙋‍♂️ Come say "Hi", we don't bite!
 We discuss & share ideas on astrology and computation. And ways you can integrate VedAstro into your own project.
@@ -349,6 +351,7 @@ throughout the program.
                     +------------------------+                +------------------+
 ```
 
+<!--
 # ⚙️ Setup Guide
 
 ### Prerequisite
@@ -380,7 +383,7 @@ throughout the program.
   - go to provide and Enable Debug, save (this will instruct the code to look for API in local).
 
 Now you can have fun with VedAstro, ;-) try making horoscope and share your feedback in Slack channel. 
-
+-->
 
 # Code Edit Guide
 

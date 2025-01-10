@@ -319,6 +319,7 @@ public class OpenAPIMetadata : EventArgs, IToJson
     {
         var temp = new JObject();
         temp[nameof(this.Signature)] = this.Signature;
+        temp[nameof(this.LineNumber)] = this.LineNumber;
         temp[nameof(this.Description)] = this.Description;
         temp[nameof(this.ExampleOutput)] = this.ExampleOutput;
 
@@ -339,11 +340,8 @@ public class OpenAPIMetadata : EventArgs, IToJson
 
         temp[nameof(this.SelectedParams)] = package;
 
-
         //# METHOD INFO
-        temp[nameof(this.MethodInfo)] = this.MethodInfo.ToJson();
-
-
+        temp[nameof(this.MethodInfo)] = this.MethodInfo.ToJson(this);
 
         return temp;
     }

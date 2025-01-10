@@ -3,7 +3,7 @@
 new PageHeader("PageHeader");
 //new InfoBox("InfoBox_EasyImport_AddPerson");
 new InfoBox("InfoBox_Private_AddPerson");
-new InfoBox("InfoBox_ForgotenTime_AddPerson");
+//new InfoBox("InfoBox_ForgotenTime_AddPerson");
 new IconButton("IconButton_Advanced");
 new IconButton("IconButton_Save_AddPerson");
 let timeLocationInput = new TimeLocationInput("TimeLocationInput_AddPerson");
@@ -18,7 +18,7 @@ $(document).ready(function () {
         var currentValue = $(this).val();
 
         // Convert the value to Pascal Case
-        var convertedValue = convertNameToPascalCase(currentValue);
+        var convertedValue = CommonTools.convertNameToPascalCase(currentValue);
 
         // Update the input element with the converted value
         $(this).val(convertedValue);
@@ -30,25 +30,26 @@ function OnClickAdvanced() {
     smoothSlideToggle('#NotesInputHolder');
     smoothSlideToggle(`#${timeLocationInput.TimezoneOffsetInputHolderID}`);
 }
-async function OnClickSave_AddPerson() {
+
+async function OnClickSave() {
 
     // if not logged in tell user what the f he is doing
-    if (VedAstro.IsGuestUser()) {
-        const loginLink = `<a href="./Login.html" target="_blank" style="text-decoration-line: none;" class="link-primary fw-bold">logged in</a>`;
-        const result = await Swal.fire({
-            icon: 'info',
-            title: 'Remember!',
-            html: `You have not ${loginLink}, continue as <strong>Guest</strong>?`,
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Yes, continue!'
-        });
-        if (!result.isConfirmed) return;
-    }
+    //if (VedAstro.IsGuestUser()) {
+    //    const loginLink = `<a href="./Login.html" target="_blank" style="text-decoration-line: none;" class="link-primary fw-bold">logged in</a>`;
+    //    const result = await Swal.fire({
+    //        icon: 'info',
+    //        title: 'Remember!',
+    //        html: `You have not ${loginLink}, continue as <strong>Guest</strong>?`,
+    //        showCancelButton: true,
+    //        confirmButtonColor: '#3085d6',
+    //        cancelButtonColor: '#d33',
+    //        confirmButtonText: 'Yes, continue!'
+    //    });
+    //    if (!result.isConfirmed) return;
+    //}
 
     // only continue if passed input field validation
-    if (!(await isValidationPassed_AddPerson())) {
+    if (!(await isValidationPassed())) {
         Swal.close();
         return;
     }
@@ -60,16 +61,18 @@ async function OnClickSave_AddPerson() {
     const person = await getPersonInstanceFromInput();
 
     // send newly created person to API server (server gives back unique ID 🆕)
-    const newPersonId = await AddPerson(person);
+    const newPersonId = await AddPersonViaApi(person);
 
     // update new id, before saving into browser storage
     person.PersonId = newPersonId;
 
-    // after adding new person, set person as selected to make life easier for user (UX)
-    // use localStorage key set by caller in URL if any,
+    // After adding new person, set person as selected to make life easier for user (UX)
+    // Use sessionStorage key set by caller in URL if any,
     // this allows each new person to be auto selected on a multi selector page 
     const selectedPersonStorageKey = new URL(window.location.href).searchParams.get('SelectedPersonStorageKey');
-    if (selectedPersonStorageKey) { localStorage.setItem(selectedPersonStorageKey, JSON.stringify(person)); } 
+    if (selectedPersonStorageKey) {
+        sessionStorage.setItem(selectedPersonStorageKey, JSON.stringify(person));
+    }
 
     //clear cached person list (will cause person drop down to fetch new)
     PersonSelectorBox.ClearPersonListCache('private');
@@ -95,7 +98,7 @@ async function OnClickSave_AddPerson() {
 
 // Add a person to the Vedastro API
 // returns newly created ID for person
-async function AddPerson(person) {
+async function AddPersonViaApi(person) {
 
     // convert to birth time to correct URL format
     var timeUrl = person.BirthTime.ToUrl(); // sample: Location/Singapore/Time/00:00/24/06/2024/
@@ -107,7 +110,7 @@ async function AddPerson(person) {
         `/${timeUrl}`, // exp: Location/Singapore/Time/00:00/24/06/2024/
         `PersonName/${person.Name}`, //NOTE: time URL has trailing, so we skip '/' before
         `/Gender/${person.Gender}`,
-        `/Notes/${toUrlSafe(person.Notes)}`
+        `/Notes/${CommonTools.toUrlSafe(person.Notes)}`
     ].join('');
 
     // Make the API call to add the person
@@ -119,17 +122,6 @@ async function AddPerson(person) {
 
     return newPersonId;
 }
-
-/**
- * Converts text to URL-safe text.
- *
- * @param {string} text - The text to be converted.
- * @returns {string} The URL-safe text.
- */
-function toUrlSafe(text) {
-    return encodeURIComponent(text).replace(/%20/g, '+');
-}
-
 
 //brings together all the individual data for making person 
 //profile from page into 1 parsed Person instance object
@@ -153,24 +145,10 @@ async function getPersonInstanceFromInput() {
 }
 
 /**
- * Converts a name given in all caps to Pascal Case, but not initials.
- * @param {string} name - The name to be converted.
- * @returns {string} The converted name.
+ * Validates the input fields.
+ * @returns {Promise<boolean>} - True if validation passes.
  */
-function convertNameToPascalCase(name) {
-    return name.split(' ').map(word => {
-        // If the word is longer than 2 characters, it's probably not an initial
-        if (word.length > 2) {
-            // Convert the first character to uppercase and the rest to lowercase
-            return word.charAt(0) + word.slice(1).toLowerCase();
-        } else {
-            // Leave the word as it is (all uppercase)
-            return word;
-        }
-    }).join(' ');
-}
-
-async function isValidationPassed_AddPerson() {
+async function isValidationPassed() {
     // Prepare view components for checking
     const nameInput = document.getElementById("NameInput_AddPerson");
     const genderInput = document.getElementById("GenderInput_AddPerson");
