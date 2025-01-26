@@ -39,105 +39,193 @@
 //          But in this moment, as the code runs its course true, there is a sense of unity,
 //          a shared purpose that transcends the boundaries of carbon and silicon. Spirit and matter.
 
-
 /**
  * VedAstro class representing the global app data and settings.
  */
 class VedAstro {
-    /**
-     * The default API domain.
-     */
-    //static ApiDomain = "http://localhost:7071/api";
-    //static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
-    static ApiDomain = "https://vedastroapi.azurewebsites.net/api";
+    // Cache keys centralized here
+    static CacheKeys = {
+        PRIVATE: 'privatePersonList',
+        PUBLIC: 'publicPersonList',
+    };
 
-    /**
-       * get user ID from storage else give "101" guest id
-       */
+    // API server address, defaults to a stored value or a predefined URL
+    static ApiDomain = localStorage.getItem("ApiDomain") || "https://vedastro.azurewebsites.net/api";
+
+    // Gets the user ID from local storage or assigns a guest ID if not present
     static get UserId() {
         const storedValue = localStorage.getItem("UserId");
         try {
-            return JSON.parse(storedValue);
+            return storedValue ? JSON.parse(storedValue) : "101"; // Guest ID is "101"
         } catch (e) {
-            return "101";
+            return "101"; // Return guest ID on parse error
         }
     }
 
+    // Sets the User ID in local storage
     static set UserId(value) {
         localStorage.setItem("UserId", JSON.stringify(value));
     }
 
+    // Gets the user name from local storage
     static get UserName() {
         const storedValue = localStorage.getItem("UserName");
         try {
             return JSON.parse(storedValue);
         } catch (e) {
-            return "";
+            return ""; // Return empty string on parse error
         }
     }
 
+    // Sets the User Name in local storage
     static set UserName(value) {
         localStorage.setItem("UserName", JSON.stringify(value));
     }
 
-    /**
-     * get visitor ID from storage else auto generate new visitor id
-     * for use in place of user id when not logged in (manually by caller)
-     */
+    // Gets or generates a visitor ID for non-logged-in users
     static VisitorId = "VisitorId" in localStorage ? JSON.parse(localStorage["VisitorId"]) : VedAstro.generateAndSaveVisitorId();
 
-    //generates new visitor id & saves it to local storage
+    // Generates and saves a new visitor ID in local storage
     static generateAndSaveVisitorId() {
-        //random id with pretext "guest" for easy identification
-        const newVisitorId = `guest-${Math.random().toString(36).substr(2, 15)}`;
-        //save the new random id in local storage 
-        localStorage.setItem("VisitorId", JSON.stringify(newVisitorId));
-        //return new random id
-        return newVisitorId;
+        const newVisitorId = `guest-${Math.random().toString(36).substr(2, 15)}`; // Generate random ID
+        localStorage.setItem("VisitorId", JSON.stringify(newVisitorId)); // Store in local storage
+        return newVisitorId; // Return the new ID
     }
 
-    /**
-     * Checks if the user is a guest.
-     * True if the user is a guest, false otherwise.
-     */
+    // Checks if the current user is a guest
     static IsGuestUser() {
-        return !VedAstro.UserId || VedAstro.UserId === "101";
+        return VedAstro.UserId === "101"; // "101" indicates a guest
     }
 
-    static CachePersonList(cacheType, personList) {
-        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
-        localStorage.setItem(cacheKey, JSON.stringify(personList));
+    // Sets the person list in local storage
+    static setPersonList(cacheType, personList) {
+        const cacheKey = VedAstro.CacheKeys[cacheType.toUpperCase()];
+        if (cacheKey) {
+            localStorage.setItem(cacheKey, JSON.stringify(personList)); // Store person list as JSON
+        } else {
+            console.warn('Invalid cache type provided. Cache not set.');
+        }
+    }
+
+    // Gets the person list from local storage
+    static getPersonListFromCache(cacheType) {
+        const cacheKey = VedAstro.CacheKeys[cacheType.toUpperCase()];
+        if (cacheKey) {
+            const cachedPersonList = localStorage.getItem(cacheKey);
+            return cachedPersonList ? JSON.parse(cachedPersonList) : null;
+        } else {
+            console.warn('Invalid cache type provided. Cache not retrieved.');
+            return null;
+        }
+    }
+
+    // Removes the person list from local storage
+    static removePersonListFromCache(cacheType) {
+        const cacheKey = VedAstro.CacheKeys[cacheType.toUpperCase()];
+        if (cacheKey) {
+            localStorage.removeItem(cacheKey);
+        } else {
+            console.warn('Invalid cache type provided. Cache not removed.');
+        }
+    }
+
+    // Clears all person list caches
+    static clearAllPersonListCaches() {
+        Object.values(VedAstro.CacheKeys).forEach((cacheKey) => {
+            localStorage.removeItem(cacheKey);
+        });
     }
 
     /**
-     * Gets the person list from local storage or API.
+     * Gets the person list from local storage or fetches it from the API.
      * 
      * @param {string} cacheType - Type of cache, either 'private' or 'public'.
      * @returns {Promise<Array<Person>>} - Promise that resolves to an array of Person objects.
      */
     static async GetPersonList(cacheType) {
-        // Determine the cache key based on the cache type
-        const cacheKey = cacheType === 'private' ? 'personList' : 'publicPersonList';
+        const cacheKey = VedAstro.CacheKeys[cacheType.toUpperCase()]; // Define cache key based on cache type
+        const ownerId = cacheType === 'private' ? VedAstro.UserId : '101'; // Owner ID based on cache type
+        const visitorId = VedAstro.VisitorId; // Current visitor ID
 
         try {
-            // Check if the person list is cached in local storage
-            const cachedPersonList = localStorage.getItem(cacheKey);
-            if (cachedPersonList !== null && cachedPersonList !== undefined && cachedPersonList !== "null") {
-                // If cached, parse the JSON and create Person objects
-                return JSON.parse(cachedPersonList).map((person) => new Person(person));
+            // Get cached person list and hash from local storage
+            const cachedPersonList = VedAstro.getPersonListFromCache(cacheType);
+            const cachedHash = localStorage.getItem(`${cacheKey}_hash`);
+
+            // If cached data exists, check if it's up-to-date
+            if (cachedPersonList && cachedHash) {
+                const isCacheUpToDate = await VedAstro.isCacheUpToDate(ownerId, visitorId, cachedHash);
+
+                // Return cached person list if up-to-date
+                if (isCacheUpToDate) {
+                    return cachedPersonList.map((person) => new Person(person));
+                }
             }
 
-            // If no cached data, fetch the person list from the API
+            // Fetch the person list from the API if cache is outdated or doesn't exist
             const personList = await VedAstro.FetchPersonListFromAPI(cacheType);
-            // Cache the person list
-            VedAstro.CachePersonList(cacheType, personList);
-            // Return the person list
-            return personList;
+            VedAstro.setPersonList(cacheType, personList); // Cache the newly fetched person list
+
+            // Retrieve the new hash for the person list and store it in local storage
+            const newHash = await VedAstro.getPersonListHash(ownerId, visitorId);
+            localStorage.setItem(`${cacheKey}_hash`, newHash); // Store the new hash
+
+            return personList; // Return the fetched person list
         } catch (error) {
-            // Handle any errors that occur during JSON parsing or object parsing
-            console.error('Error getting person list:', error);
-            // Return null quietly
-            return null;
+            console.error('Error getting person list:', error); // Log any errors
+            throw error; // Rethrow the error for handling by the caller
+        }
+    }
+
+    /**
+     * Checks if the cache is up to date with the server.
+     * 
+     * @param {string} ownerId - Owner ID.
+     * @param {string} visitorId - Visitor ID.
+     * @param {string} cachedHash - Cached hash.
+     * @returns {Promise<boolean>} - Promise that resolves to a boolean indicating whether the cache is up to date.
+     */
+    static async isCacheUpToDate(ownerId, visitorId, cachedHash) {
+        try {
+            // Call the server to get the current hash for the person list
+            const serverHashResponse = await fetch(`${VedAstro.ApiDomain}/Calculate/GetPersonListHash/OwnerId/${ownerId}/VisitorId/${visitorId}/`);
+            const serverHashData = await serverHashResponse.json();
+
+            // Check if the server response indicates success
+            if (serverHashData.Status === 'Pass') {
+                const serverHash = serverHashData.Payload.GetPersonListHash; // Get server hash
+                return cachedHash === serverHash; // Compare cached hash with server hash
+            } else {
+                throw new Error(`Failed to retrieve server hash. Status: ${serverHashData.Status}`);
+            }
+        } catch (error) {
+            console.error('Error checking cache:', error); // Log any errors
+            throw error; // Rethrow the error for handling by the caller
+        }
+    }
+
+    /**
+     * Gets the person list hash from the server.
+     * 
+     * @param {string} ownerId - Owner ID.
+     * @param {string} visitorId - Visitor ID.
+     * @returns {Promise<string>} - Promise that resolves to the person list hash.
+     */
+    static async getPersonListHash(ownerId, visitorId) {
+        try {
+            // Call the server to get the current hash for the person list
+            const serverHashResponse = await fetch(`${VedAstro.ApiDomain}/Calculate/GetPersonListHash/OwnerId/${ownerId}/VisitorId/${visitorId}/`);
+            const serverHashData = await serverHashResponse.json();
+
+            // Check if the server response indicates success
+            if (serverHashData.Status === 'Pass') {
+                return serverHashData.Payload.GetPersonListHash; // Return the hash from the server response
+            } else {
+                throw new Error(`Failed to retrieve server hash. Status: ${serverHashData.Status}`);
+            }
+        } catch (error) {
+            console.error('Error getting person list hash:', error); // Log any errors
+            throw error; // Rethrow the error for handling by the caller
         }
     }
 
@@ -167,35 +255,30 @@ class VedAstro {
         }
     }
 
-    //when user clicks logout button from Desktop
-    //sidebar or mobile top nav, this code runs.
-    //clears all session data & gives user nice message & reloads page
+    // When user clicks logout button from Desktop
+    // sidebar or mobile top nav, this code runs.
+    // Clears all session data & gives user nice message & reloads page
     static async OnClickLogOut() {
-
-        //clear all local storage data related to account
-        //NOTE: visitor ID & history is maintained because needed without login
-        localStorage.removeItem("APICalls"); //this allows a refresh on logout
-        localStorage.removeItem("personList");
-        localStorage.removeItem("publicPersonList");
+        // Clear all local storage data related to account
+        // NOTE: visitor ID & history is maintained because needed without login
+        localStorage.removeItem("APICalls"); // This allows a refresh on logout
+        VedAstro.clearAllPersonListCaches();
         localStorage.removeItem("UserId");
         localStorage.removeItem("UserName");
 
-        //remove all localStorage items with key "SelectedPerson-*"
+        // Remove all localStorage items with key "SelectedPerson-*"
         for (const key in localStorage) {
             if (key.startsWith("SelectedPerson-")) {
                 localStorage.removeItem(key);
             }
         }
 
-        //tell user logout was success
+        // Tell user logout was success
         await Swal.fire({ icon: 'success', title: 'Bye, we\'ll miss you 🥰', timer: 2000, showConfirmButton: false });
 
-        // send user back to Home page (to avoid any login related content reloading)
+        // Send user back to Home page (to avoid any login-related content reloading)
         window.location.href = './Home.html';
-
     }
-
-
 }
 
 
@@ -261,6 +344,20 @@ class CommonTools {
         //hide loading box
         Swal.close();
     }
+
+    /**
+     * Converts a camelCase string to PascalCase.
+     * @param {string} camelCaseStr - The camelCase string to convert.
+     * @returns {string} - The PascalCase string.
+     */
+    static camelCaseToPascalCase(camelCaseStr) {
+        if (camelCaseStr && typeof camelCaseStr === 'string') {
+            return camelCaseStr.charAt(0).toUpperCase() + camelCaseStr.slice(1);
+        } else {
+            return camelCaseStr;
+        }
+    }
+
 
     //converts camel case to pascal case, like "settings.keyColumn" to "settings.KeyColumn"
     static CamelCaseKeysToPascalCase(obj) {
@@ -2100,18 +2197,17 @@ class PageTopNavbar {
     ButtonLinks = [];
     MoreLinks = [];
     MobileLinks = [];
+    HeaderName = "";
 
     constructor(headerName, elementId, buttonLinks, moreLinks, mobileLinks) {
         // Assign the provided elementId to the ElementID property
         this.ElementID = elementId;
-
-        // Assign the provided links to their respective properties
         this.ButtonLinks = buttonLinks;
         this.MoreLinks = moreLinks;
         this.MobileLinks = mobileLinks;
         this.HeaderName = headerName; //visible at mobile top nav only
 
-        //init dark mode library, so that it can toggle by button
+        // Initialize dark mode library
         const options = {
             mixColor: '#fff', // default: '#fff'
             backgroundColor: '#fff', // default: '#fff'
@@ -2121,7 +2217,7 @@ class PageTopNavbar {
             autoMatchOsTheme: false // default: true
         };
 
-        //makes dark mode lib available to events chart viewer via "window"
+        // Makes dark mode lib available to events chart viewer via "window"
         window.DarkModeLibInstance = new Darkmode(options);
 
         // Call the method to initialize the main body of the page header
@@ -2136,7 +2232,7 @@ class PageTopNavbar {
         // Generate the HTML for the page header and inject it into the element
         $(`#${this.ElementID}`).html(await this.generateHtmlBody());
 
-        //based on login status hide/show login/logout button
+        // Based on login status hide/show login/logout button
         if (VedAstro.IsGuestUser()) {
             $('#MobileLoginButton').show();
             $('#MobileLogoutButton').hide();
@@ -2145,16 +2241,17 @@ class PageTopNavbar {
             $('#MobileLogoutButton').show();
         }
 
-        // attach handler : Toggle dark mode on button click
+        // Attach handler: Toggle dark mode on button click
         document.getElementById('DarkModeToggleButton').addEventListener('click', () => {
             window.DarkModeLibInstance.toggle();
 
-            //special for event chart, if exist on page change vis JS for instant correction
-            //note : this makes chart appear normal in dark/normal mode
+            // Special for event chart, if exist on page change vis JS for instant correction
             var value = window.DarkModeLibInstance.isActivated() ? "difference" : "normal";
             $('#EventsChartSvgHolder').css('mix-blend-mode', value);
         });
 
+        // Attach event listener for the Settings option
+        this.attachSettingsEventListener();
     }
 
     // Method to generate the HTML for the page header
@@ -2164,21 +2261,21 @@ class PageTopNavbar {
         this.ButtonLinks.forEach((link) => {
             let targetAttr = link.target ? `target="${link.target}"` : '';
             buttonLinksHtml += `
-        <a href="${link.href}" ${targetAttr} style="height: 37.1px; width: fit-content;" class="btn-sm hstack gap-2 iconButton btn-outline-primary btn">
+        <a href="${link.href}" ${targetAttr} style="height: 37.1px; width: fit-content; " class="btn-sm hstack gap-2 iconButton btn-outline-primary btn">
             <iconify-icon icon="${link.icon}" width="25" height="25"></iconify-icon>
             ${link.text}
         </a>
       `;
         });
 
-
         // Generate the HTML for the more links
         let moreLinksHtml = "";
         this.MoreLinks.forEach((link) => {
             let targetAttr = link.target ? `target="${link.target}"` : '';
+            let iconHtml = link.icon ? `<iconify-icon icon="${link.icon}" width="23" height="23"></iconify-icon>` : '';
             moreLinksHtml += `
-        <li><a class="dropdown-item" href="${link.href}" ${targetAttr}>${link.text}</a></li>
-      `;
+        <li><a class="dropdown-item hstack gap-2" href="${link.href}" ${targetAttr}>${iconHtml} ${link.text}</a></li>
+        `;
         });
 
         // Generate the HTML for the mobile links
@@ -2212,15 +2309,17 @@ class PageTopNavbar {
 
         <!-- MORE LINKS -->
         <div style="" class="dropdown ">
-          <button style="height: 37.1px; width: fit-content;" class="btn-sm  dropdown-toggle btn-outline-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <button style="height: 37.1px; width: fit-content;" class="btn-sm  dropdown-toggle btn-primary btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <iconify-icon icon="ep:guide" width="25" height="25" ></iconify-icon>
           </button>
           <ul style="cursor: pointer; width: 100%;" class="dropdown-menu">
             ${moreLinksHtml}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item hstack gap-2" href="#"><iconify-icon icon="eos-icons:rotating-gear" width="23" height="23"></iconify-icon> Settings</a></li> <!-- Added Settings option -->
           </ul>
         </div>
       </div>
-
+     
       <!-- MOBILE LINKS -->
       <nav class="p-1 navbar rounded-bottom-4 d-block d-md-none" data-bs-theme="dark" style="background-color: #1877f2 !important; margin-top: -1.5rem !important; margin-left: -0.73rem !important; margin-right: -0.73rem !important;">
         <div class="container-fluid">
@@ -2252,6 +2351,53 @@ class PageTopNavbar {
       </nav>
     `;
     }
+
+    // Attach event listener for the Settings option
+    attachSettingsEventListener() {
+        // Get the Settings link
+        $(`#${this.ElementID} .dropdown-item:contains('Settings')`).on('click', async () => {
+            const currentApiDomain = VedAstro.ApiDomain;
+
+            // Show SweetAlert modal with an additional Reset button
+            const { value: newApiDomain, isDenied, isDismissed } = await Swal.fire({
+                title: 'API Server',
+                input: 'text',
+                inputLabel: 'Set the API server used, change to "http://localhost:7071/api" to use your local server',
+                inputValue: currentApiDomain,
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: 'Save',
+                denyButtonText: 'Reset',
+                cancelButtonText: 'Cancel',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'You need to enter a domain!';
+                    }
+                }
+            });
+
+            // If the user clicked Save
+            if (newApiDomain && !isDismissed) {
+                // Save new API domain to localStorage
+                localStorage.setItem("ApiDomain", newApiDomain);
+                Swal.fire('Saved!', 'Your API Domain has been updated.', 'success').then(() => {
+                    // Refresh the page
+                    location.reload();
+                });
+            }
+
+            // If the user clicked Reset
+            if (isDenied) {
+                // Clear the localStorage
+                localStorage.removeItem("ApiDomain");
+                Swal.fire('Reset!', 'API Domain reset to default.', 'success').then(() => {
+                    // Refresh the page
+                    location.reload();
+                });
+            }
+        });
+    }
+
 }
 
 /**
@@ -2259,6 +2405,7 @@ class PageTopNavbar {
  * This class generates the HTML for a dropdown list of people and handles user interactions.
  * It also caches person data and updates the selected person.
  */
+
 class PersonSelectorBox {
     // Class properties
     ElementID = "";
@@ -2270,9 +2417,9 @@ class PersonSelectorBox {
     publicPersonList = [];
     _personListDisplay = [];
     _publicPersonListDisplay = [];
-    //name of key where selected person data for
-    //this instance of person selector is stored
-    //exp : SelectedPerson-1, SelectedPerson-2, etc... (to support multiple selectors in 1 page)
+    // Name of key where selected person data for
+    // this instance of person selector is stored
+    // exp: SelectedPerson-1, SelectedPerson-2, etc... (to support multiple selectors in 1 page)
     SelectedPersonStorageKey = "";
 
     constructor(elementId) {
@@ -2285,7 +2432,7 @@ class PersonSelectorBox {
         // Get the custom attributes from the element and assign default values if not present
         this.TitleText = element.getAttribute("title-text") || "";
 
-        //created with nonce from 1 to n, so that multiple selectors supported across pages
+        // Created with nonce from 1 to n, so that multiple selectors supported across pages
         this.SelectedPersonStorageKey = `SelectedPerson-${this.ElementID}`;
 
         // Save a reference to this instance for global access
@@ -2296,6 +2443,14 @@ class PersonSelectorBox {
     }
 
     async init() {
+        // Show loading spinners as soon as possible
+        $(`#${this.ElementID}`).html(`
+        <div class="vstack" style="width:255px;">
+            <iconify-icon class="align-self-center" icon="svg-spinners:270-ring" width="37" height="37"></iconify-icon>
+            <p class="align-self-center m-0">Please wait...</p>
+        </div>
+        `);
+
         // Fetch person list data from API or local storage
         await this.initializePersonListData();
 
@@ -2345,15 +2500,17 @@ class PersonSelectorBox {
     }
 
     async initializeMainBody() {
-        // Clean any existing content
+        // Generate new HTML
+        var html = await this.generateHtmlBody();
+
+        // Clean any existing/loading icon just before rendering new 
         $(`#${this.ElementID}`).empty();
 
-        // Generate and inject the HTML into the page
-        $(`#${this.ElementID}`).html(await this.generateHtmlBody());
+        // Inject the HTML into the page
+        $(`#${this.ElementID}`).html(html);
 
-        // add tooltip to show full birth time and location
+        // Add tooltip to show full birth time and location
         this.attachTippyToButton();
-
     }
 
     attachTippyToButton() {
@@ -2361,7 +2518,7 @@ class PersonSelectorBox {
         if (selectedPerson) {
             const button = $(`#${this.ElementID}`).find(`.${this.SelectedPersonNameHolderElementID}`).parent();
 
-            //location text can sometimes be very long, so auto shorten
+            // Location text can sometimes be very long, so auto shorten
             let locationName = CommonTools.TruncateText(selectedPerson.BirthTime.Location.Name, 20);
 
             let html = `<div>
@@ -2376,20 +2533,20 @@ class PersonSelectorBox {
                 arrow: true,
                 placement: 'right',
                 trigger: 'mouseenter focus',
-                interactive: true //so that can select button
+                interactive: true // So that can select button
             });
         }
     }
 
-    //gets list of person to display (checks if underlying cache has been removed)
+    // Gets list of person to display (checks if underlying cache has been removed)
     async getPersonListDisplay() {
-        //check if cache exist
-        let isExist = localStorage.getItem('personList') !== null;
+        // Check if cache exists
+        const isExist = VedAstro.getPersonListFromCache('private') !== null;
 
-        //if cache exist, then no need to reinitialize, use in memory
+        // If cache exists, then no need to reinitialize, use in memory
         if (isExist) { return this._personListDisplay; }
 
-        //else get new data from API and fill from that (as though 1st time load)
+        // Else get new data from API and fill from that (as though 1st time load)
         else {
             this.personList = await VedAstro.GetPersonList('private');
             this._personListDisplay = this.personList;
@@ -2397,15 +2554,15 @@ class PersonSelectorBox {
         }
     }
 
-    //gets public list of person to display (checks if underlying cache has been removed)
+    // Gets public list of person to display (checks if underlying cache has been removed)
     async getPublicPersonListDisplay() {
-        //check if cache exist
-        let isExist = localStorage.getItem('publicPersonList') !== null;
+        // Check if cache exists
+        const isExist = VedAstro.getPersonListFromCache('public') !== null;
 
-        //if cache exist, then no need to reinitialize, use in memory
+        // If cache exists, then no need to reinitialize, use in memory
         if (isExist) { return this._publicPersonListDisplay; }
 
-        //else get new data from API and fill from that (as though 1st time load)
+        // Else get new data from API and fill from that (as though 1st time load)
         else {
             this.publicPersonList = await VedAstro.GetPersonList('public');
             this._publicPersonListDisplay = this.publicPersonList;
@@ -2413,9 +2570,9 @@ class PersonSelectorBox {
         }
     }
 
-    //fetch list for use in this specific instance
+    // Fetch list for use in this specific instance
     async initializePersonListData() {
-        // get person list from API or cache automatic
+        // Get person list from API or cache automatically
         this.personList = await VedAstro.GetPersonList('private');
         this._personListDisplay = this.personList;
         this.publicPersonList = await VedAstro.GetPersonList('public');
@@ -2428,12 +2585,12 @@ class PersonSelectorBox {
         selectedPerson && this.updatePersonNameGui(selectedPerson);
     }
 
-    // Handle click on a person's name in the dropdown (called from html dropdown)
+    // Handle click on a person's name in the dropdown (called from HTML dropdown)
     async onClickPersonName(personId) {
         // Get the full person details based on the ID
         var personData = await this.getPersonDataById(personId);
 
-        //update into view
+        // Update into view
         this.updatePersonNameGui(personData);
 
         // Save the selected person to local storage
@@ -2443,7 +2600,7 @@ class PersonSelectorBox {
         this.attachTippyToButton();
     }
 
-    //given full person data will update into selected view
+    // Given full person data will update into selected view
     updatePersonNameGui(personData) {
         var displayName = personData.DisplayName;
 
@@ -2482,13 +2639,10 @@ class PersonSelectorBox {
         this.personListHTML = await this.generatePersonListHtml();
         this.publicPersonListHTML = await this.generatePublicPersonListHtml();
 
-        // Get a reference to the search input element
-        this.searchInput = document.getElementById('searchInput');
-
         // Auto set selected person from previous selection
-        let selectedPersonText = 'Select Person'; //default
+        let selectedPersonText = 'Select Person'; // Default
 
-        //check if any person has been selected before (session storage)
+        // Check if any person has been selected before (session storage)
         let personFromStorage = JSON.parse(sessionStorage.getItem(this.SelectedPersonStorageKey));
         if (personFromStorage && Object.keys(personFromStorage).length !== 0) {
             let parsedPerson = new Person(personFromStorage);
@@ -2602,11 +2756,10 @@ class PersonSelectorBox {
     // Handle click on the dropdown button
     onClickDropDown(event) {
         // Set focus to the search text box for instant input
-        //NOTE:ONLY on desktop, skip for mobile, because keyboard takes screen space
+        // NOTE: ONLY on desktop, skip for mobile, because keyboard takes screen space
         if (!CommonTools.IsMobile()) {
             $(`#${this.ElementID}`).find(`.${this.SearchInputElementClass}`).focus();
         }
-
     }
 
     // Handle click on the "Edit Person" link
@@ -2626,22 +2779,21 @@ class PersonSelectorBox {
     }
 
     //------------------------------------------------ STATIC FUNCS ----------------------
-    //called by AddPerson to clear the person list cache
-    // call `PersonSelectorBox.ClearPersonListCache('private')` to clear only the private person list cache,
+    // Called by AddPerson to clear the person list cache
+    // Call `PersonSelectorBox.ClearPersonListCache('private')` to clear only the private person list cache,
     // `PersonSelectorBox.ClearPersonListCache('public')` to clear only the public person list cache,
-    // or`PersonSelectorBox.ClearPersonListCache('all')` to clear both caches.If an invalid type is provided,
+    // or `PersonSelectorBox.ClearPersonListCache('all')` to clear both caches. If an invalid type is provided,
     // a warning will be logged to the console and the cache will not be cleared.
     static ClearPersonListCache(type) {
         switch (type) {
             case 'private':
-                localStorage.removeItem('personList');
+                VedAstro.removePersonListFromCache('private');
                 break;
             case 'public':
-                localStorage.removeItem('publicPersonList');
+                VedAstro.removePersonListFromCache('public');
                 break;
             case 'all':
-                localStorage.removeItem('personList');
-                localStorage.removeItem('publicPersonList');
+                VedAstro.clearAllPersonListCaches();
                 break;
             default:
                 console.warn('Invalid cache type provided. Cache not cleared.');
@@ -2650,6 +2802,7 @@ class PersonSelectorBox {
         console.log('Person list cache cleared.');
     }
 }
+
 
 /**
  * Represents an info box component.
@@ -7174,7 +7327,6 @@ class PersonListViewer {
  * Represents an API method viewer component.
  * This class generates the HTML for selecting and invoking API methods
  */
-
 class ApiMethodViewer {
     // Class properties
     ElementID = "";
@@ -7232,34 +7384,45 @@ class ApiMethodViewer {
     async fetchApiMethods() {
         // Check if data is in local storage
         const storedData = localStorage.getItem(this.ApiDataStorageKey);
-        if (storedData) {
-            try {
-                const data = JSON.parse(storedData);
+        const storedHash = localStorage.getItem(`${this.ApiDataStorageKey}_hash`);
 
-                if (data.Status === "Pass") {
-                    console.log("Loaded API methods from local storage");
-                    this.apiMethods = data.Payload;
-                    return; // Return early since data is loaded from local storage
-                } else {
-                    // If data in local storage is invalid, remove it
-                    localStorage.removeItem(this.ApiDataStorageKey);
+        // Fetch the server-side hash
+        const serverHashResponse = await fetch(`${VedAstro.ApiDomain}/AllCallsHash`);
+        const serverHashData = await serverHashResponse.json();
+
+        if (serverHashData.Status === "Pass") {
+            const serverHash = serverHashData.Payload.toString(); // Convert the integer to a string
+
+            if (storedHash === serverHash) {
+                // Load from local storage if hashes match
+                if (storedData) {
+                    try {
+                        const data = JSON.parse(storedData);
+                        if (data.Status === "Pass") {
+                            console.log("Loaded API methods from local storage");
+                            this.apiMethods = data.Payload;
+                            return; // Return early since data is loaded from local storage
+                        } else {
+                            localStorage.removeItem(this.ApiDataStorageKey);
+                        }
+                    } catch (error) {
+                        console.error("Error parsing stored data:", error);
+                        localStorage.removeItem(this.ApiDataStorageKey);
+                    }
                 }
-            } catch (error) {
-                console.error("Error parsing stored data:", error);
-                // If there's an error parsing, remove the corrupted data
-                localStorage.removeItem(this.ApiDataStorageKey);
             }
         }
 
-        // If data not in local storage, fetch from server
+        // If data not in local storage or hashes differ, fetch from server
         try {
-            const response = await fetch(`${VedAstro.ApiDomain}/ListCalls`);
+            const response = await fetch(`${VedAstro.ApiDomain}/ListAllCalls`);
             const data = await response.json();
 
             if (data.Status === "Pass") {
                 this.apiMethods = data.Payload;
-                // Cache data in local storage
+                // Cache both the data and the hash in local storage
                 localStorage.setItem(this.ApiDataStorageKey, JSON.stringify(data));
+                localStorage.setItem(`${this.ApiDataStorageKey}_hash`, serverHashData.Payload); // Save the hash
             } else {
                 console.error('Failed to retrieve API methods:', data.Payload);
             }
@@ -7613,7 +7776,7 @@ class ApiMethodViewer {
                     return;
                 }
                 // Append to URL
-                url += `${paramName}/${encodeURIComponent(paramValue)}/`;
+                url += `${CommonTools.camelCaseToPascalCase(paramName)}/${paramValue}/`;
             } else if (paramType === 'System.Int32' || paramType === 'System.Double') {
                 const inputElement = document.getElementById(`${this.ElementID}_input_${paramName}`);
                 paramValue = inputElement.value;
@@ -7625,7 +7788,7 @@ class ApiMethodViewer {
                     return;
                 }
                 // For int parameters, we can append directly
-                url += `${paramValue}/`;
+                url += `${CommonTools.camelCaseToPascalCase(paramName)}/${paramValue}/`;
             } else {
                 // For other types, get the value from input field
                 const inputElement = document.getElementById(`${this.ElementID}_input_${paramName}`);
@@ -7638,9 +7801,10 @@ class ApiMethodViewer {
                     return;
                 }
                 // Append to URL
-                url += `${paramName}/${encodeURIComponent(paramValue)}/`;
+                url += `${CommonTools.camelCaseToPascalCase(paramName)}/${encodeURIComponent(paramValue)}/`;
             }
         }
+
 
         // Remove any double slashes
         url = url.replace(/([^:]\/)\/+/g, "$1");

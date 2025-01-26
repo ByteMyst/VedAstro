@@ -53,11 +53,6 @@ namespace VedAstro.Library
 
         #region SETTINGS
 
-        /// <summary>
-        /// updated when calls come in, then when sub calls go out, then are this address is used
-        /// </summary>
-        public static string CurrentServerAddress;
-
 
         /// <summary>
         /// Defaults to RAMAN, but can be set before calling any funcs,
@@ -183,6 +178,9 @@ namespace VedAstro.Library
         /// </summary>
         public static async Task<string> AddPerson(string ownerId, Time birthTime, string personName, Gender gender, string notes = "", bool failIfDuplicate = false)
         {
+            //don't allow add for public person's
+            if (ownerId == "101") { throw new Exception("You can not add/edit public profiles with ID 101"); }
+
             //special ID made for human brains 🧠 (unique in whole DB)
             var brandNewHumanReadyId = await PersonManagerTools.GeneratePersonId(ownerId, personName, birthTime.StdYearText, failIfDuplicate);
 
@@ -200,12 +198,15 @@ namespace VedAstro.Library
             return newPerson.Id;
 
         }
-        
+
         /// <summary>
         /// Note "Timezone not respected"
         /// </summary>
         public static async Task<string> UpdatePerson(string ownerId, string personId, Time birthTime, string personName, Gender gender, string notes = "")
         {
+            //don't allow add for public person's
+            if (ownerId == "101") { throw new Exception("You can not add/edit public profiles with ID 101"); }
+
             //pack the data
             var personParsed = new Person(ownerId, personId, personName, birthTime, gender, notes);
 
@@ -267,6 +268,7 @@ namespace VedAstro.Library
             //send to caller
             return personJsonList;
 
+            //------LOCAL FUNCS-----------
 
             async Task SwapUserId(string ownerId, string visitorId)
             {
@@ -297,6 +299,36 @@ namespace VedAstro.Library
 
             }
 
+        }
+
+        /// <summary>
+        /// Generates hash to verify if list client has is up to date
+        /// </summary>
+        public static async Task<string> GetPersonListHash(string ownerId, string visitorId = "")
+        {
+            // Call GetPersonList to get the list of persons
+            var personList = await GetPersonList(ownerId, visitorId);
+
+            // Initialize a string to hold the concatenated data
+            var concatenatedData = string.Empty;
+
+            // Concatenate the data of all persons in the list
+            foreach (var person in personList)
+            {
+                concatenatedData += person["PersonId"].ToString() +
+                                    person["Name"].ToString() +
+                                    person["BirthTime"].ToString() +
+                                    person["Notes"].ToString();
+            }
+
+            // Generate a SHA256 hash of the concatenated data
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(concatenatedData));
+
+            // Convert the hash to a hexadecimal string
+            var hash = BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+
+            return hash;
         }
 
         /// <summary>
@@ -543,11 +575,11 @@ namespace VedAstro.Library
 
         /// <summary>
         /// Gets all events occuring at given time. Basically a slice from "Events Chart"
-        /// Can be used by LLM to interprate final prediction
+        /// Can be used by LLM to interprate final prediction. Also known as Muhurtha
         /// </summary>
-        /// <param name="birthTime"></param>
-        /// <param name="checkTime"></param>
-        /// <param name="eventTagList"></param>
+        /// <param name="birthTime">DOB of person involded in event</param>
+        /// <param name="checkTime">time event will occur</param>
+        /// <param name="eventTagList">tags to select events</param>
         public static List<Event> EventsAtTime(Time birthTime, Time checkTime, List<EventTag> eventTagList)
         {
             // TEMP hack to place time in Person (wrapped) 
@@ -3713,7 +3745,6 @@ namespace VedAstro.Library
             }
 
         }
-
 
         public static double TimeToJulianUniversalTime(Time time)
         {
@@ -11498,6 +11529,276 @@ namespace VedAstro.Library
             return occuring;
         }
 
+
+        #endregion
+
+        #region CHARA DASA
+
+        /// <summary>
+        /// Represents a Chara Dasha period with sub-periods.
+        /// </summary>
+        public class DashaPeriod
+        {
+            public ZodiacName SignName { get; set; }
+            public DateTimeOffset StartTime { get; set; }
+            public DateTimeOffset EndTime { get; set; }
+            public List<SubPeriod> SubPeriods { get; set; }
+        }
+
+        /// <summary>
+        /// Represents a sub-period within a Chara Dasha period.
+        /// </summary>
+        public class SubPeriod
+        {
+            public ZodiacName SignName { get; set; }
+            public DateTimeOffset StartTime { get; set; }
+            public DateTimeOffset EndTime { get; set; }
+        }
+
+        /// <summary>
+        /// Calculates the Chara Dasa sign at the specified checkTime based on the birthTime.
+        /// </summary>
+        /// <param name="birthTime">The birth time of the person.</param>
+        /// <param name="checkTime">The time at which to check the Chara Dasa.</param>
+        /// <returns>The name of the Chara Dasha sign active at the checkTime with sub-periods.</returns>
+        public static DashaPeriod GetCharaDasaAtTime(Time birthTime, Time checkTime)
+        {
+            // Step 1: Determine the Lagna (Ascendant) sign at birth
+            var lagnaSign = Calculate.LagnaSignName(birthTime);
+            int lagnaIndex = (int)lagnaSign;
+
+            // Step 2: Calculate the Chara Dasha order starting from the Lagna
+            List<ZodiacName> dashaOrder = CalculateCharaDashaOrder(lagnaSign);
+
+            // Step 3: Calculate the duration of each Dasha period in years
+            Dictionary<ZodiacName, double> dashaYears = CalculateCharaDashaYears(birthTime, dashaOrder);
+
+            // Step 4: Generate the Dasha periods with start and end times
+            List<DashaPeriod> dashaPeriods = GenerateCharaDashaPeriods(birthTime, dashaOrder, dashaYears);
+
+            // Step 5: Find the Dasha period active at checkTime
+            var activeDasha = dashaPeriods.FirstOrDefault(dp => dp.StartTime <= checkTime.GetLmtDateTimeOffset() && checkTime.GetLmtDateTimeOffset() < dp.EndTime);
+
+            // Step 6: Calculate the sub-periods for the active Dasha period
+            if (activeDasha != null)
+            {
+                var subPeriods = GenerateSubPeriods(activeDasha, birthTime);
+                activeDasha.SubPeriods = subPeriods;
+            }
+
+            return activeDasha;
+        }
+
+        /// <summary>
+        /// Generates the sub-periods for a given Chara Dasha period.
+        /// </summary>
+        public static List<SubPeriod> GenerateSubPeriods(DashaPeriod dashaPeriod, Time birthTime)
+        {
+            List<SubPeriod> subPeriods = new List<SubPeriod>();
+            var planetDegrees = GetPlanetDegrees(birthTime);
+
+            // Ninth house from the current Dasha sign
+            var ninthHouse = Calculate.SignCountedFromInputSign(dashaPeriod.SignName, 9);
+
+            // Order type (direct or indirect)
+            var orderType = GetOrderType(ninthHouse);
+
+            // Calculate the sub-periods
+            var totalMonths = (dashaPeriod.EndTime - dashaPeriod.StartTime).TotalDays / 30;
+            var totalDegrees = 360;
+            var subPeriodMonths = (totalMonths * 12) / totalDegrees;
+
+            if (orderType == "direct")
+            {
+                for (int i = 1; i <= 12; i++)
+                {
+                    var subPeriodSign = (ZodiacName)(((int)dashaPeriod.SignName + i - 1) % 12 + 1);
+                    var subPeriodStartTime = dashaPeriod.StartTime.AddMonths((int)((i - 1) * subPeriodMonths));
+                    var subPeriodEndTime = dashaPeriod.StartTime.AddMonths((int)(i * subPeriodMonths));
+
+                    subPeriods.Add(new SubPeriod
+                    {
+                        SignName = subPeriodSign,
+                        StartTime = subPeriodStartTime,
+                        EndTime = subPeriodEndTime
+                    });
+                }
+            }
+            else
+            {
+                for (int i = 1; i <= 12; i++)
+                {
+                    var subPeriodSign = (ZodiacName)(((int)dashaPeriod.SignName - i + 12) % 12 + 1);
+                    var subPeriodStartTime = dashaPeriod.StartTime.AddMonths((int)((i - 1) * subPeriodMonths));
+                    var subPeriodEndTime = dashaPeriod.StartTime.AddMonths((int)(i * subPeriodMonths));
+
+                    subPeriods.Add(new SubPeriod
+                    {
+                        SignName = subPeriodSign,
+                        StartTime = subPeriodStartTime,
+                        EndTime = subPeriodEndTime
+                    });
+                }
+            }
+
+            return subPeriods;
+        }
+
+        /// <summary>
+        /// Determines the order type (direct or indirect) for the sub-periods.
+        /// </summary>
+        public static string GetOrderType(ZodiacName ninthHouse)
+        {
+            // The order type depends on the nature of the 9th house from the current Dasha sign
+            if (ninthHouse == ZodiacName.Aries || ninthHouse == ZodiacName.Taurus || ninthHouse == ZodiacName.Gemini ||
+                ninthHouse == ZodiacName.Libra || ninthHouse == ZodiacName.Scorpio || ninthHouse == ZodiacName.Sagittarius)
+            {
+                return "direct";
+            }
+            else
+            {
+                return "indirect";
+            }
+        }
+
+        /// <summary>
+        /// Gets the degrees of the planets at birth time.
+        /// </summary>
+        private static Dictionary<PlanetName, double> GetPlanetDegrees(Time birthTime)
+        {
+            // Get the degrees of the planets at birth time
+            var planetDegrees = new Dictionary<PlanetName, double>();
+            foreach (var planet in PlanetName.All7Planets)
+            {
+                var planetZodiac = Calculate.PlanetZodiacSign(planet, birthTime);
+                planetDegrees[planet] = planetZodiac.GetDegreesInSign().TotalDegrees;
+            }
+            return planetDegrees;
+        }
+
+
+        /// <summary>
+        /// Calculates the Chara Dasha order starting from the Lagna sign.
+        /// </summary>
+        private static List<ZodiacName> CalculateCharaDashaOrder(ZodiacName lagnaSign)
+        {
+            // Determine the order type based on Lagna sign
+            var orderType = GetCharaDashaOrderType(lagnaSign);
+
+            // Generate the Dasha order
+            List<ZodiacName> dashaOrder = new List<ZodiacName>();
+            if (orderType == "direct")
+            {
+                // Direct motion through zodiac signs
+                for (int i = 0; i < 12; i++)
+                {
+                    var sign = (ZodiacName)(((int)lagnaSign + i - 1) % 12 + 1);
+                    dashaOrder.Add(sign);
+                }
+            }
+            else
+            {
+                // Reverse motion through zodiac signs
+                for (int i = 0; i < 12; i++)
+                {
+                    var sign = (ZodiacName)(((int)lagnaSign - i - 1 + 12) % 12 + 1);
+                    dashaOrder.Add(sign);
+                }
+            }
+            return dashaOrder;
+        }
+
+        /// <summary>
+        /// Determines the order type (direct or indirect) for Chara Dasha based on Lagna sign.
+        /// </summary>
+        private static string GetCharaDashaOrderType(ZodiacName lagnaSign)
+        {
+            // The order type depends on the nature of the 9th house from Lagna
+            var ninthHouseSign = Calculate.SignCountedFromInputSign(lagnaSign, 9);
+            if (ninthHouseSign == ZodiacName.Aries || ninthHouseSign == ZodiacName.Taurus || ninthHouseSign == ZodiacName.Gemini ||
+                ninthHouseSign == ZodiacName.Libra || ninthHouseSign == ZodiacName.Scorpio || ninthHouseSign == ZodiacName.Sagittarius)
+            {
+                return "direct";
+            }
+            else
+            {
+                return "indirect";
+            }
+        }
+
+        /// <summary>
+        /// Calculates the duration of each Chara Dasha period in years.
+        /// </summary>
+        private static Dictionary<ZodiacName, double> CalculateCharaDashaYears(Time birthTime, List<ZodiacName> dashaOrder)
+        {
+            Dictionary<ZodiacName, double> dashaYears = new Dictionary<ZodiacName, double>();
+
+            foreach (var sign in dashaOrder)
+            {
+                // Calculate the duration for each sign
+                double years = CalculateCharaDashaDurationForSign(birthTime, sign);
+                dashaYears[sign] = years;
+            }
+
+            return dashaYears;
+        }
+
+        /// <summary>
+        /// Calculates the duration of the Chara Dasha period for a particular sign.
+        /// </summary>
+        private static double CalculateCharaDashaDurationForSign(Time birthTime, ZodiacName sign)
+        {
+            // Get the lord of the sign
+            var lord = Calculate.LordOfZodiacSign(sign);
+
+            // Get the position of the lord
+            var lordSign = Calculate.PlanetZodiacSign(lord, birthTime).GetSignName();
+
+            // Calculate the distance between the signs
+            int distance = Calculate.GetSignDistance(sign, lordSign);
+            if (distance == 0)
+            {
+                distance = 12;
+            }
+
+            return distance;
+        }
+
+        /// <summary>
+        /// Generates the Chara Dasha periods with start and end times.
+        /// </summary>
+        private static List<DashaPeriod> GenerateCharaDashaPeriods(Time birthTime, List<ZodiacName> dashaOrder, Dictionary<ZodiacName, double> dashaYears)
+        {
+            List<DashaPeriod> dashaPeriods = new List<DashaPeriod>();
+            var currentTime = birthTime.GetLmtDateTimeOffset();
+
+            foreach (var sign in dashaOrder)
+            {
+                double years = dashaYears[sign];
+                var endTime = currentTime.AddYears((int)years).AddMonths((int)((years - (int)years) * 12));
+
+                dashaPeriods.Add(new DashaPeriod
+                {
+                    SignName = sign,
+                    StartTime = currentTime,
+                    EndTime = endTime
+                });
+
+                currentTime = endTime;
+            }
+
+            return dashaPeriods;
+        }
+
+
+        /// <summary>
+        /// Calculates the distance between two zodiac signs.
+        /// </summary>
+        private static int GetSignDistance(ZodiacName fromSign, ZodiacName toSign)
+        {
+            int distance = ((int)toSign - (int)fromSign + 12) % 12;
+            return distance == 0 ? 12 : distance;
+        }
 
         #endregion
 

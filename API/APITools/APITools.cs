@@ -26,17 +26,12 @@ using System.Net;
 using System.Net.Mime;
 using System.Text.Json;
 using System.Xml.Linq;
-using Azure.Data.Tables;
 using Azure.Storage.Blobs;
 using SuperConvert.Extensions;
 using VedAstro.Library;
-using Microsoft.Bing.ImageSearch.Models;
-using Microsoft.Bing.ImageSearch;
-using Microsoft.Extensions.DependencyModel;
 using Person = VedAstro.Library.Person;
 
 using MimeDetective;
-using HtmlAgilityPack;
 
 namespace API
 {
@@ -50,24 +45,6 @@ namespace API
 
         //hard coded links to files stored in storage
         //public const string ApiDataStorageContainer = "vedastro-site-data";
-
-        //NAMES OF FILES IN AZURE STORAGE FOR ACCESS
-        public const string LiveChartHtml = "LiveChart.html";
-
-        public const string VisitorLogFile = "VisitorLog.xml";
-        public const string MessageListFile = "MessageList.xml";
-        public const string SavedEventsChartListFile = "SavedChartList.xml";
-        public const string SavedMatchReportList = "SavedMatchReportList.xml";
-        public const string UserDataListXml = "UserDataList.xml";
-
-
-        public static URL Url { get; set; } //instance of beta or stable URLs
-
-        static APITools()
-        {
-            //make urls used here for beta or stable
-            Url = new URL(GetIsBetaRuntime(), false); //obviously no debug mode
-        }
 
 
         public static async Task<JObject> ExtractDataFromRequestJson(HttpRequestData request)
@@ -92,47 +69,6 @@ namespace API
             }
         }
 
-
-        /// <summary>
-        /// Default success message sent to caller
-        /// - .ToString(SaveOptions.DisableFormatting); to remove make xml indented
-        /// </summary>
-        public static HttpResponseData PassMessage(HttpRequestData req) => PassMessage("", req);
-
-        /// <summary>
-        /// we specify xml catch error at compile time, likely to fail
-        /// </summary>
-        public static HttpResponseData PassMessage(XElement payload, HttpRequestData req)
-        {
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            response.Headers.Add("Content-Type", "text/xml"); //todo check if charset is needed
-
-            //wrap data in nice tag
-            var finalXml =
-                new XElement("Root", new XElement("Status", "Pass"), new XElement("Payload", payload)).ToString(
-                    SaveOptions.DisableFormatting); //no XML indent
-
-            //place in response body
-            response.WriteString(finalXml);
-
-            return response;
-        }
-
-        public static HttpResponseData PassMessage(string payload, HttpRequestData req)
-        {
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            //response.Headers.Add("Content-Type", "text/xml"); //todo check if charset is needed
-
-            //wrap data in nice tag
-            var finalXml =
-                new XElement("Root", new XElement("Status", "Pass"), new XElement("Payload", payload)).ToString(
-                    SaveOptions.DisableFormatting); //no XML indent
-
-            //place in response body
-            response.WriteString(finalXml);
-
-            return response;
-        }
 
         /// <summary>
         /// data comes in as XML should leave as JSON ready for sending to client via HTTP
@@ -220,7 +156,7 @@ namespace API
             MessageJson("Fail", payload, req);
 
         public static HttpResponseData FailMessageJson(Exception payloadException, HttpRequestData req) =>
-            MessageJson("Fail", Tools.ExceptionToXML(payloadException), req);
+            MessageJson("Fail", Tools.ExceptionToJSON(payloadException), req);
 
         public static HttpResponseData PassMessageJson(object payload, HttpRequestData req) =>
             MessageJson("Pass", payload, req);
@@ -242,9 +178,6 @@ namespace API
 
             return response;
         }
-
-        public static HttpResponseData FailMessage(Exception payloadException, HttpRequestData req) =>
-            FailMessage(Tools.ExceptionToXML(payloadException), req);
 
 
         //----------------------------------------FUNCTIONS---------------------------------------------
@@ -410,25 +343,6 @@ namespace API
         }
 
 
-        public static IEnumerable<LogItem> GetOnlineVisitors(XDocument visitorLogDocument)
-        {
-
-            //parse all logs
-            var xmlRecordList = visitorLogDocument.Root?.Elements() ?? new List<XElement>();
-            List<LogItem> logItemList = LogItem.FromXml(xmlRecordList);
-
-            //last hour
-            var lastHourRecords = from logItem in logItemList
-                                  where Tools.IsWithinLastHour(logItem.Time, -24)
-                                  select logItem;
-
-            //unique visitors
-            List<LogItem> uniqueList = lastHourRecords.DistinctBy(p => p.VisitorId).ToList();
-
-            return uniqueList;
-        }
-
-
         /// <summary>
         /// data comes in as XML should leave as JSON ready for sending to client via HTTP
         /// </summary>
@@ -573,125 +487,13 @@ namespace API
         }
 
 
-       
-
-
-        /// <summary>
-        /// based on caller's ip address, set limit
-        /// </summary>
-        /// <returns></returns>
-        public static async Task AutoControlOpenAPIOverload(OpenAPILogBookEntity callData)
-        {
-            var minute1 = 1;
-            var minute30 = 30;
-            var ipAddress = callData.PartitionKey;
-            var lastCallsCount = APILogger.GetAllCallsWithinLastTimeperiod(ipAddress, minute1);
-
-            //rate set in runtime settings is multipliedfull 
-            var msDelayRate = 800;
-            var freeCallRate = 50;//allowed high speed calls per minute //int.Parse(Secrets.OpenAPICallDelayMs); TODO add to Secrets
-
-            //if more than 1 abuse count in the last 10 minutes than end the call here with no reply
-            //NOTE : no default way in Azure Function to cut connection, so THROW EXCEPTION cuts call
-            var abuseCount = APILogger.GetAbuseCountWithinLastTimeperiod(ipAddress, minute30);
-            if (abuseCount > 2)
-            {
-                //drop the call
-                await Task.Delay(9999999); //12min
-                throw new Exception();
-            }
-
-            //if delay applied then let caller know
-            //NOTE : other words allowed 1 call every 30 seconds
-            var userCallRate = lastCallsCount / minute1; //calls per minute
-            if (userCallRate > freeCallRate)
-            {
-                //make a mark in API abuse list, to detect excessive non-stop calls
-                await AzureTable.APIAbuseList.UpsertEntityAsync(new APIAbuseRow() { PartitionKey = ipAddress, RowKey = Tools.GenerateId() });
-
-                //every additional call within specified time limit gets slowed accordingly
-                //exp: last 3 calls x 800ms = 4th call delay --> 2400ms
-                var msDelay = lastCallsCount * msDelayRate;
-
-                //todo shorten link
-                APITools.ApiExtraNote = $"Donate To Increase Speed : " +
-                                        $"{URL.Donate}";
-
-                await Task.Delay(msDelay);
-#if DEBUG
-                Console.WriteLine($"AUTO Throttle : IP -> {ipAddress} Delay ->{msDelay}ms");
-#endif
-
-            }
-            else
-            {
-                //if below limit than let call run, clear message
-                APITools.ApiExtraNote = "";
-            }
-
-        }
-
-
-        /// <summary>
-        /// only for specified table vedastroapistorage
-        /// </summary>
-        public static TableClient GetTableClientFromTableName(string tableName)
-        {
-            //prepare call stuff
-            string storageAccountKey = Secrets.Get("CentralStorageKey");
-            string accountName = Secrets.Get("CentralStorageAccountName");
-            var tableUlr = $"https://{accountName}.table.core.windows.net/{tableName}";
-            
-            //get connection
-            var tableServiceClient = new TableServiceClient(new Uri(tableUlr), new TableSharedKeyCredential(accountName, storageAccountKey));
-            var client = tableServiceClient.GetTableClient(tableName);
-
-            return client;
-        }
-
-
         /// <summary>
         /// Given a file or string convertible data, send it to caller accordingly
         /// </summary>
-        public static HttpResponseData SendAnyToCaller(string format, string calculatorName, dynamic rawPlanetData, HttpRequestData incomingRequest)
+        public static HttpResponseData SendAnyToCaller(string calculatorName, dynamic rawPlanetData, HttpRequestData incomingRequest)
         {
-            //if format specified as JPEG, then process separately if body is not binary already
-            //meaning here process methods that can output JSON
-            if (format == "JPEG" && rawPlanetData is not byte[])
-            {
-                //if supports JPEG convert here and end it
-                if (rawPlanetData is IToJpeg iToJpeg)
-                {
-                    var rawFileData = iToJpeg.ToJpeg();
-
-                    //get correct mime type so browser or receiver knows how to present
-                    var mimeType = GetMimeType(rawFileData);
-
-                    return Tools.SendFileToCaller(rawFileData, incomingRequest, mimeType);
-                }
-                //JSON convert to table needs extra step
-                //NOTE: this generic JSON to JPEG converter,
-                //if rendering not good implement custom IToJpeg
-                else  /*(rawPlanetData is IToJson iToJson)*/
-                {
-                    //first convert to json
-                    DataTable rawTable = Tools.AnyToDataTable(calculatorName, rawPlanetData);
-
-                    //convert data table to JPEG image
-                    var image = Tools.DataTableToJpeg(rawTable);
-
-                    //get correct mime type so browser or receiver knows how to present
-                    var mimeType = GetMimeType(image);
-
-                    return Tools.SendFileToCaller(image, incomingRequest, mimeType);
-                }
-
-                Type type = rawPlanetData.GetType();
-                return APITools.FailMessageJson($"JPEG Formatter for {type.Name} under construction. Donate to speed up development.", incomingRequest);
-            }
-
             //then it is a file
-            else if (rawPlanetData is byte[] rawFileData)
+            if (rawPlanetData is byte[] rawFileData)
             {
                 //get correct mime type so browser or receiver knows how to present
                 var mimeType = GetMimeType(rawFileData);

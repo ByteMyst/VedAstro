@@ -1,10 +1,6 @@
 ﻿using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using VedAstro.Library;
-using System.Net;
-using Newtonsoft.Json.Linq;
-using Time = VedAstro.Library.Time;
-
 
 
 //█░█░█ █░█ █▀▀ █▄░█   ▀█▀ █▀▀ █▀▀ █░█ █▄░█ █▀█ █░░ █▀█ █▀▀ █▄█   █▀▀ ▄▀█ █▄░█ ▀ ▀█▀   █▄▀ █▀▀ █▀▀ █▀█   █░█ █▀█
@@ -115,7 +111,7 @@ namespace API
                 APILogger.Error(e, incomingRequest);
 
                 //format error nicely to show user
-                return APITools.FailMessage(e, incomingRequest);
+                return APITools.FailMessageJson(e, incomingRequest);
             }
         }
 
